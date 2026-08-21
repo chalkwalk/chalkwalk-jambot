@@ -4,6 +4,7 @@
 #include "BotDsp.h"
 #include "BotVoice.h"
 #include <chalkwalk/music/Euclidean.h>
+#include <cstdint>
 #include <algorithm>
 
 namespace BotBand {
@@ -254,7 +255,11 @@ chalkwalk::music::KeySig toKeySig(const MusicalKey::Key &key) {
     brightness = m::kLocrian;
     break;
   }
-  return m::KeySig{((key.tonic % 12) + 12) % 12,
+  // The cast is not decoration: `root` is a uint8_t and the expression is an
+  // int, which is a narrowing conversion in a braced initialiser. gcc allows
+  // it, clang and MSVC reject it outright, and this compiled for months inside
+  // a project whose CI never built this file with either.
+  return m::KeySig{static_cast<std::uint8_t>(((key.tonic % 12) + 12) % 12),
                    static_cast<std::int8_t>(brightness),
                    {},
                    m::ScaleType::Diatonic};
