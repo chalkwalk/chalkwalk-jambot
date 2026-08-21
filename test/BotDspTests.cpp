@@ -1,5 +1,5 @@
-#include "../src/jambot/BotDsp.h"
-#include <JuceHeader.h>
+#include "../src/BotDsp.h"
+#include "JuceUnitShim.h"
 
 #include <chalkwalk/dsp/Measure.h>
 
@@ -59,9 +59,9 @@ bool allFinite(const std::vector<float> &v) {
 
 } // namespace
 
-class BotDspTests : public juce::UnitTest {
+class BotDspTests : public shim::UnitTest {
 public:
-  BotDspTests() : juce::UnitTest("BotDsp", "music") {}
+  BotDspTests() : shim::UnitTest("BotDsp", "music") {}
 
   void runTest() override {
     runFilterTests();
@@ -825,4 +825,7 @@ public:
   }
 };
 
-static BotDspTests botDspTests;
+TEST_CASE("bot dsp") {
+  BotDspTests t;
+  t.runTest();
+}

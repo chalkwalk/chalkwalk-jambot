@@ -1,5 +1,5 @@
-#include "../src/jambot/BandPlayState.h"
-#include <JuceHeader.h>
+#include "../src/BandPlayState.h"
+#include "JuceUnitShim.h"
 
 // The four states a bot's playing goes through, and nothing else. Pure, so the
 // transitions are driven directly rather than through a room and a socket --
@@ -17,9 +17,9 @@ juce::String nameOf(BandPlayState::State s) {
   return "?";
 }
 
-class BandPlayStateTests : public juce::UnitTest {
+class BandPlayStateTests : public shim::UnitTest {
 public:
-  BandPlayStateTests() : juce::UnitTest("BandPlayState", "bots") {}
+  BandPlayStateTests() : shim::UnitTest("BandPlayState", "bots") {}
 
   using S = BandPlayState::State;
 
@@ -173,6 +173,9 @@ public:
   }
 };
 
-static BandPlayStateTests bandPlayStateTests;
+TEST_CASE("band play state") {
+  BandPlayStateTests t;
+  t.runTest();
+}
 
 } // namespace

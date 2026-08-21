@@ -1,5 +1,5 @@
-#include "../src/jambot/BotNames.h"
-#include <JuceHeader.h>
+#include "../src/BotNames.h"
+#include "JuceUnitShim.h"
 
 // The names are an addressing mechanism before they are anything else, so these
 // are exact tests about properties an address needs -- not about taste.
@@ -31,9 +31,9 @@ juce::String rime(const juce::String &s) {
 
 } // namespace
 
-class BotNamesTests : public juce::UnitTest {
+class BotNamesTests : public shim::UnitTest {
 public:
-  BotNamesTests() : juce::UnitTest("BotNames", "music") {}
+  BotNamesTests() : shim::UnitTest("BotNames", "music") {}
 
   void runTest() override {
     beginTest("every name can be sent a private message");
@@ -158,4 +158,7 @@ public:
   }
 };
 
-static BotNamesTests botNamesTests;
+TEST_CASE("bot names") {
+  BotNamesTests t;
+  t.runTest();
+}

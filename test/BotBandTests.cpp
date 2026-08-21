@@ -1,10 +1,9 @@
-#include "../src/jambot/BandPatch.h"
-#include "../src/jambot/BotBand.h"
-#include "../src/jambot/BotVoice.h"
+#include "../src/BandPatch.h"
+#include "../src/BotBand.h"
+#include "../src/BotVoice.h"
 #include <chalkwalk/music/Euclidean.h>
-#include "TestSignal.h"
 #include <map>
-#include <JuceHeader.h>
+#include "JuceUnitShim.h"
 
 #include <chalkwalk/dsp/Measure.h>
 
@@ -106,9 +105,9 @@ std::vector<float> render(BotBand::Voice voice, const BotBand::Settings &s,
 
 } // namespace
 
-class BotBandTests : public juce::UnitTest {
+class BotBandTests : public shim::UnitTest {
 public:
-  BotBandTests() : juce::UnitTest("BotBand", "music") {}
+  BotBandTests() : shim::UnitTest("BotBand", "music") {}
 
   void runTest() override {
     runSeedTests();
@@ -182,18 +181,11 @@ public:
           mix.setSample(ch, start + (int)j, acc[j]);
     }
 
-    juce::File out(path);
-    out.deleteFile();
-    juce::WavAudioFormat wav;
-    std::unique_ptr<juce::AudioFormatWriter> writer(
-        wav.createWriterFor(new juce::FileOutputStream(out), 48000.0, 2, 24,
-                            {}, 0));
-    if (writer == nullptr) {
+    juce::File(path).deleteFile();
+    if (!shim::writeWav(path.toStdString(), mix, 48000.0)) {
       expect(false, "could not open " + path);
       return;
     }
-    writer->writeFromAudioSampleBuffer(mix, 0, mix.getNumSamples());
-    writer.reset();
 
     logMessage("wrote " + juce::String(intervals) + " intervals of " + keyName +
                " at " + juce::String(bpm) + " bpm, " + juce::String(bpi) +
@@ -1970,13 +1962,13 @@ public:
 private:
   // Fundamental by autocorrelation.
   //
-  // TestSignal::dominantFrequency counts threshold crossings, which is right
-  // for the pure tones the rest of the suite uses and wrong here. The bass
+  // A threshold-crossing counter is right for pure tones and wrong here --
+  // Antiphon's TestSignal.h has one, and it was tried first. The bass
   // carries a strong second harmonic, so its waveform is asymmetric: the
   // negative lobe does not always reach the hysteresis threshold, crossings
   // are missed, and the estimate comes out about three semitones flat --
   // consistently enough to look like a transposition bug in the synthesis
-  // rather than an artefact of the instrument (PRINCIPLES 5).
+  // rather than an artefact of the instrument. Suspect the measurement.
   //
   // Autocorrelation finds the period rather than the crossings, so harmonics
   // reinforce the answer instead of confusing it.
@@ -2003,4 +1995,7 @@ private:
   }
 };
 
-static BotBandTests botBandTests;
+TEST_CASE("bot band") {
+  BotBandTests t;
+  t.runTest();
+}

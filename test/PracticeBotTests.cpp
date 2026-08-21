@@ -1,5 +1,5 @@
-#include "../src/jambot/PracticeBot.h"
-#include <JuceHeader.h>
+#include "../src/PracticeBot.h"
+#include "JuceUnitShim.h"
 
 // PracticeBot, with no socket and no room.
 //
@@ -135,9 +135,9 @@ struct Rig {
   }
 };
 
-class PracticeBotTests : public juce::UnitTest {
+class PracticeBotTests : public shim::UnitTest {
 public:
-  PracticeBotTests() : juce::UnitTest("PracticeBot", "bots") {}
+  PracticeBotTests() : shim::UnitTest("PracticeBot", "bots") {}
 
   void runTest() override {
     beginTest("a bot answers what it is asked, with no room around it");
@@ -216,6 +216,9 @@ public:
   }
 };
 
-static PracticeBotTests practiceBotTests;
+TEST_CASE("practice bot") {
+  PracticeBotTests t;
+  t.runTest();
+}
 
 } // namespace

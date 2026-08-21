@@ -1,5 +1,5 @@
-#include "../src/jambot/BotLanguage.h"
-#include <JuceHeader.h>
+#include "../src/BotLanguage.h"
+#include "JuceUnitShim.h"
 
 // `test/fixtures/bot-phrases.txt` is the specification, and the number this
 // file exists to produce is the MISS RATE over it.
@@ -31,9 +31,9 @@
 // new phrasings to the END of a section so the every-fourth split keeps
 // allocating roughly a quarter of them to a holdout that has never been read.
 
-class BotLanguageTests : public juce::UnitTest {
+class BotLanguageTests : public shim::UnitTest {
 public:
-  BotLanguageTests() : juce::UnitTest("BotLanguage", "music") {}
+  BotLanguageTests() : shim::UnitTest("BotLanguage", "music") {}
 
   void runTest() override {
     runStageTests();
@@ -445,17 +445,14 @@ public:
   }
 
 private:
-  static juce::File fixtureFile() {
-    auto dir = juce::File::getSpecialLocation(juce::File::currentExecutableFile)
-                   .getParentDirectory();
-    for (int i = 0; i < 8; ++i) {
-      const auto candidate = dir.getChildFile("test/fixtures/bot-phrases.txt");
-      if (candidate.existsAsFile())
-        return candidate;
-      dir = dir.getParentDirectory();
-    }
-    return {};
-  }
+  // The build says where the corpora are. The old lookup walked eight
+  // parents up from the executable hunting for test/fixtures, which answers
+  // "no corpus" for a build tree in the wrong place -- and a corpus test that
+  // skips itself looks exactly like one that passes.
+  static juce::File fixtureFile() { return shim::fixture("bot-phrases.txt"); }
 };
 
-static BotLanguageTests botLanguageTests;
+TEST_CASE("bot language") {
+  BotLanguageTests t;
+  t.runTest();
+}

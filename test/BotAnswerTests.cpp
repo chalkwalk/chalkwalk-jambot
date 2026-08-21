@@ -1,6 +1,6 @@
-#include "../src/MusicalKey.h"
-#include "../src/jambot/BotAnswer.h"
-#include <JuceHeader.h>
+#include "../src/Music.h"
+#include "../src/BotAnswer.h"
+#include "JuceUnitShim.h"
 
 namespace {
 
@@ -14,9 +14,9 @@ BotAnswer::Room roomIn(const char *key, BotAnswer::Source keySource,
   return r;
 }
 
-class BotAnswerTests : public juce::UnitTest {
+class BotAnswerTests : public shim::UnitTest {
 public:
-  BotAnswerTests() : juce::UnitTest("BotAnswer", "music") {}
+  BotAnswerTests() : shim::UnitTest("BotAnswer", "music") {}
 
   void runTest() override {
     using namespace BotAnswer;
@@ -219,6 +219,9 @@ public:
   }
 };
 
-static BotAnswerTests botAnswerTests;
+TEST_CASE("bot answer") {
+  BotAnswerTests t;
+  t.runTest();
+}
 
 } // namespace

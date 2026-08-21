@@ -1,5 +1,5 @@
-#include "../src/jambot/BandPatch.h"
-#include <JuceHeader.h>
+#include "../src/BandPatch.h"
+#include "JuceUnitShim.h"
 
 // The parameter layer, which is what the band lab edits and what a tuning
 // session hands back.
@@ -9,9 +9,9 @@
 // number a person listened to and settled on arrives back in the code as the
 // same number, in the right instrument.
 
-class BandPatchTests : public juce::UnitTest {
+class BandPatchTests : public shim::UnitTest {
 public:
-  BandPatchTests() : juce::UnitTest("BandPatch", "music") {}
+  BandPatchTests() : shim::UnitTest("BandPatch", "music") {}
 
   void runTest() override {
     runKnobTests();
@@ -310,4 +310,7 @@ public:
   }
 };
 
-static BandPatchTests bandPatchTests;
+TEST_CASE("band patch") {
+  BandPatchTests t;
+  t.runTest();
+}

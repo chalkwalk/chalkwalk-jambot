@@ -1,10 +1,10 @@
 #pragma once
 
-#include "jambot/BandPlayState.h"
-#include "jambot/BotAddress.h"
-#include "jambot/BotBand.h"
-#include "jambot/BotChat.h"
-#include "jambot/BotClient.h"
+#include "BandPlayState.h"
+#include "BotAddress.h"
+#include "BotBand.h"
+#include "BotChat.h"
+#include "BotClient.h"
 #include <atomic>
 #include <functional>
 #include <mutex>

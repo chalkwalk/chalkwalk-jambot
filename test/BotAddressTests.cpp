@@ -1,5 +1,5 @@
-#include "../src/jambot/BotAddress.h"
-#include <JuceHeader.h>
+#include "../src/BotAddress.h"
+#include "JuceUnitShim.h"
 
 // The addressing corpus IS the specification, so this file is mostly a reader
 // for it. `test/fixtures/bot-addressing.txt` states, for 150 messages arriving
@@ -61,9 +61,9 @@ juce::String labelFor(const juce::String &instrument) {
 
 } // namespace
 
-class BotAddressTests : public juce::UnitTest {
+class BotAddressTests : public shim::UnitTest {
 public:
-  BotAddressTests() : juce::UnitTest("BotAddress", "music") {}
+  BotAddressTests() : shim::UnitTest("BotAddress", "music") {}
 
   void runTest() override {
     runUnitTests();
@@ -301,18 +301,11 @@ public:
   }
 
 private:
-  static juce::File fixtureFile() {
-    auto dir = juce::File::getSpecialLocation(
-        juce::File::currentExecutableFile).getParentDirectory();
-    for (int i = 0; i < 8; ++i) {
-      const auto candidate =
-          dir.getChildFile("test/fixtures/bot-addressing.txt");
-      if (candidate.existsAsFile())
-        return candidate;
-      dir = dir.getParentDirectory();
-    }
-    return {};
-  }
+  // The build says where the corpora are. The old lookup walked eight
+  // parents up from the executable hunting for test/fixtures, which answers
+  // "no corpus" for a build tree in the wrong place -- and a corpus test that
+  // skips itself looks exactly like one that passes.
+  static juce::File fixtureFile() { return shim::fixture("bot-addressing.txt"); }
 
   // Which bots answer this message, in this context.
   juce::StringArray answerersFor(const juce::String &context,
@@ -391,4 +384,7 @@ private:
   }
 };
 
-static BotAddressTests botAddressTests;
+TEST_CASE("bot address") {
+  BotAddressTests t;
+  t.runTest();
+}

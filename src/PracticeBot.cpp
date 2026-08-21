@@ -5,7 +5,7 @@
 #include <chalkwalk/music/Text.h>
 #include <chalkwalk/ninjam/RoomConventions.h>
 
-#include "jambot/BotNames.h"
+#include "BotNames.h"
 
 namespace cwtext = chalkwalk::music::text;
 

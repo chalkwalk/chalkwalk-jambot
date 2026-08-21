@@ -1,7 +1,7 @@
-#include "../src/MusicalKey.h"
-#include "../src/jambot/BotChat.h"
+#include "../src/Music.h"
+#include "../src/BotChat.h"
 #include <chalkwalk/music/Text.h>
-#include <JuceHeader.h>
+#include "JuceUnitShim.h"
 
 namespace {
 
@@ -67,9 +67,9 @@ juce::String outsideQuotes(const juce::String &text) {
   return out;
 }
 
-class BotChatTests : public juce::UnitTest {
+class BotChatTests : public shim::UnitTest {
 public:
-  BotChatTests() : juce::UnitTest("BotChat", "bots") {}
+  BotChatTests() : shim::UnitTest("BotChat", "bots") {}
 
   void runTest() override {
     beginTest("an addressed question about the sound is answered, not deflected");
@@ -929,6 +929,9 @@ public:
   }
 };
 
-static BotChatTests botChatTests;
+TEST_CASE("bot chat") {
+  BotChatTests t;
+  t.runTest();
+}
 
 } // namespace
