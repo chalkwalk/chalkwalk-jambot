@@ -49,7 +49,7 @@ target_include_directories(chalkwalk_jambot
 target_link_libraries(chalkwalk_jambot
     PUBLIC chalkwalk::music chalkwalk::ninjam chalkwalk::dsp)
 
-target_compile_features(chalkwalk_jambot PUBLIC cxx_std_17)
+target_compile_features(chalkwalk_jambot PUBLIC cxx_std_20)
 
 if(MSVC)
     target_compile_options(chalkwalk_jambot PRIVATE /W4)
