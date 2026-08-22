@@ -418,24 +418,47 @@ void PracticeBot::onBandReplyDue() {
 
 void PracticeBot::onGraceExpired() { part(); }
 
-int PracticeBot::speakDelayMs(const std::string &botName) {
-  // Long enough that the winner's line has crossed the server and come back to
-  // everyone else -- loopback is immediate, a real server is tens of
-  // milliseconds -- and short enough to read as an answer rather than a pause.
-  std::uint32_t h = 2166136261u;
-  for (auto c : botName)
-    h = (h ^ (std::uint32_t)(char)c) * 16777619u;
-  return 220 + (int)(h % 380u);
+namespace {
+
+// Where a bot sits in the room's sorted bot list, and what to do when it is
+// not in it at all.
+//
+// An unlisted bot goes LAST rather than first. It happens when the roster is
+// still filling, and a bot that has not yet seen the others is the one least
+// entitled to speak for them.
+int rankAmong(const std::string &botName,
+              const std::vector<std::string> &botsPresent) {
+  // Sorted HERE rather than trusted from the caller, even though
+  // `botsPresent()` already sorts. Two bots must compute the same rank for the
+  // same name or they do not agree about who speaks, and a guarantee that
+  // depends on every caller remembering something is the shape of defect this
+  // function was just rewritten to remove.
+  std::vector<std::string> ranked = botsPresent;
+  std::sort(ranked.begin(), ranked.end(), [](const auto &a, const auto &b) {
+    return chalkwalk::music::text::lower(a) < chalkwalk::music::text::lower(b);
+  });
+
+  const auto at = std::find(ranked.begin(), ranked.end(), botName);
+  if (at == ranked.end())
+    return (int)ranked.size();
+  return (int)std::distance(ranked.begin(), at);
+}
+
+} // namespace
+
+int PracticeBot::speakDelayMs(const std::string &botName,
+                              const std::vector<std::string> &botsPresent) {
+  return 220 + rankAmong(botName, botsPresent) * kSpeakStaggerMs;
 }
 
 int PracticeBot::arrivalDelayMs() const {
-  // Derived from the name rather than drawn randomly, so a room is reproducible
-  // and a test can rely on it. Different names give different offsets, which is
-  // all the spread has to do.
-  std::uint32_t h = 2166136261u;
-  for (auto c : botName)
-    h = (h ^ (std::uint32_t)(char)c) * 16777619u;
-  return 4000 + (int)(h % 2000u);
+  // Ranked, for the reason speakDelayMs is: the roster is arbitrated the same
+  // way, and a hash put two bots 32ms apart here too -- which is how the room
+  // came to be introduced twice.
+  //
+  // The base is longer because this one waits for a room to assemble rather
+  // than for a question to be answered.
+  return 4000 + rankAmong(botName, botsPresent()) * kSpeakStaggerMs;
 }
 
 // The owner as the ROOM sees them. An anonymous NINJAM login arrives as

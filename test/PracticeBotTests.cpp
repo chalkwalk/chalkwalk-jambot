@@ -1,6 +1,8 @@
 #include "../src/PracticeBot.h"
 #include "JuceUnitShim.h"
 
+#include <algorithm>
+
 // PracticeBot, with no socket and no room.
 //
 // It could not be tested this way before: it owned a `NinjamClient`, so every
@@ -213,6 +215,46 @@ public:
       if (chords.size() == 4)
         expectEquals(chords[0].root, 11, "the chart did not transpose");
     }
+
+    beginTest("no two bots in a band wake close enough to race");
+    {
+      // The arbitration is delay-and-watch: each bot waits its own delay, then
+      // checks whether the answer has already been given. That only works if
+      // the winner's line has crossed the server and come back BEFORE the next
+      // bot wakes -- so the stagger needs a guaranteed minimum, not an average
+      // one.
+      //
+      // A hash modulo has no minimum. It put two of these four 32ms apart, and
+      // on a loaded macOS runner both timers fired in one scheduling wake and
+      // both bots posted the roster. It passed on Linux for years by luck.
+      const std::vector<std::string> band{"Quado[kit-bot]", "Vessa[bass-bot]",
+                                          "Ravo[keys-bot]", "Pemo[lead-bot]"};
+
+      std::vector<int> delays;
+      for (const auto &name : band)
+        delays.push_back(PracticeBot::speakDelayMs(name, band));
+      std::sort(delays.begin(), delays.end());
+
+      for (std::size_t i = 1; i < delays.size(); ++i)
+        expect(delays[i] - delays[i - 1] >= PracticeBot::kSpeakStaggerMs,
+               "two bots wake " + std::to_string(delays[i] - delays[i - 1]) +
+                   "ms apart, which is not enough for the first to be heard");
+
+      // Every bot has to compute the SAME answer, or they do not agree about
+      // who speaks. The roster it is ranked in is sorted, so the order does
+      // not depend on who asks.
+      std::vector<std::string> shuffled{band.rbegin(), band.rend()};
+      for (const auto &name : band)
+        expectEquals(PracticeBot::speakDelayMs(name, shuffled),
+                     PracticeBot::speakDelayMs(name, band),
+                     "a bot's delay depends on the order it sees the room in");
+
+      // A bot that is not in the roster still has to answer something, rather
+      // than land on top of whoever holds rank 0.
+      expect(PracticeBot::speakDelayMs("Zeno[lead-bot]", band) > delays.back(),
+             "an unlisted bot collides with the band");
+    }
+
   }
 };
 

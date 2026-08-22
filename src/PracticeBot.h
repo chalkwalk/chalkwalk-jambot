@@ -120,14 +120,29 @@ public:
   static bool isPartCommand(const std::string &text);
   static std::string helpLine(const std::string &botName);
 
-  // How long a bot waits before speaking for the band. Derived from the name,
-  // like the arrival stagger, so a room is reproducible and no two bots wake
-  // together.
+  // The gap between one bot waking and the next. It has to outlast a line
+  // crossing the server and coming back -- loopback is immediate, a real
+  // server is tens of milliseconds, a loaded machine is worse -- and still
+  // read as an answer rather than a pause.
+  static constexpr int kSpeakStaggerMs = 400;
+
+  // How long a bot waits before speaking for the band.
+  //
+  // RANK in the room's sorted bot list, not a hash of the name. A hash modulo
+  // has no minimum separation: it put two of four bots 32ms apart, and two
+  // timers due that close fire in one scheduling wake, before either line has
+  // been seen by the other. Both bots then answered, which is exactly what the
+  // arbitration exists to prevent. It held on Linux and not on macOS, which is
+  // to say it never held -- it was luck with a margin nobody had measured.
+  //
+  // `botsPresent` is sorted, so every bot computes the same ranking and they
+  // agree about who speaks without asking each other.
   //
   // Public because a test of the arbitration that cannot say WHICH bot would
   // win a race is not testing the arbitration: it passes or fails on which
   // names the seed happened to pick.
-  static int speakDelayMs(const std::string &botName);
+  static int speakDelayMs(const std::string &botName,
+                          const std::vector<std::string> &botsPresent);
 
 private:
   void onConnected() override;
@@ -208,7 +223,7 @@ private:
   void ownerAbsent(bool everArrived);
   void ownerBack();
 
-  int speakDelayMs() const { return speakDelayMs(botName); }
+  int speakDelayMs() const { return speakDelayMs(botName, botsPresent()); }
 
   std::string botName;
   std::vector<std::string> channels;
