@@ -78,4 +78,7 @@ inline std::string announcementAdvice(const Key &key) {
 }
 } // namespace KeyTag
 
-namespace ChatFormat = chalkwalk::ninjam::conventions;
+// The room's conventions, under a short name. NOT `ChatFormat`: Antiphon has a
+// header of that name for rendering chat lines, and an alias here would
+// collide with it the moment a host includes both.
+namespace RoomTalk = chalkwalk::ninjam::conventions;

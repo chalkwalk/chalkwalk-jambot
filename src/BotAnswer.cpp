@@ -120,9 +120,9 @@ std::string answerSetTempo(const Room &room, int wantBpm, int wantBpi) {
   const std::string here = "we are at " + std::to_string(room.bpm) + " bpm, " +
                             std::to_string(room.bpi) + " bpi.";
 
-  if (wantBpm > 0 && !ChatFormat::isVotableBpm(wantBpm))
+  if (wantBpm > 0 && !RoomTalk::isVotableBpm(wantBpm))
     return "the tempo vote only goes from 40 to 400 bpm. " + here;
-  if (wantBpi > 0 && !ChatFormat::isVotableBpi(wantBpi))
+  if (wantBpi > 0 && !RoomTalk::isVotableBpi(wantBpi))
     return "the interval vote only goes from 2 to 64 bpi. " + here;
 
   std::string how;

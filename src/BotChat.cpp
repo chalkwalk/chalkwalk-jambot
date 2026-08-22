@@ -171,7 +171,7 @@ void tempoAskedFor(const std::string &text, int &bpm, int &bpi) {
       continue;
     }
 
-    if (!ChatFormat::isVotableBpm(value) && ChatFormat::isVotableBpi(value))
+    if (!RoomTalk::isVotableBpm(value) && RoomTalk::isVotableBpi(value))
       bpi = value;
     else
       bpm = value;
