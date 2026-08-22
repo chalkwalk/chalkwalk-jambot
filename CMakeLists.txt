@@ -51,6 +51,12 @@ target_link_libraries(chalkwalk_jambot
 
 target_compile_features(chalkwalk_jambot PUBLIC cxx_std_17)
 
+# A plugin is a shared module, and a static library linked into one must be
+# position-independent or the link fails outright on Linux. Its siblings all
+# set this; it only showed here when Antiphon first linked the band into its
+# VST3 and CLAP builds.
+set_target_properties(chalkwalk_jambot PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 if(MSVC)
     target_compile_options(chalkwalk_jambot PRIVATE /W4)
 else()
