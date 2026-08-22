@@ -23,7 +23,7 @@ public:
 
     beginTest("nothing a bot says can set the key by saying it");
     {
-      // The rule this file exists to keep. `MusicalKey::parseTagged` matches
+      // The rule this file exists to keep. `KeyTag::parseTagged` matches
       // `[key:` anywhere in a line, so a reply that quoted the tag would set
       // the key -- in its own state and in every Antiphon client in the room.
       // The failure would be silent, and no corpus can catch it, so it is
@@ -47,7 +47,7 @@ public:
                                         answerSetTempo(r, 500, 0),
                                         answerVoteRequest(r)};
         for (const auto &line : replies) {
-          expect(!MusicalKey::parseAnnouncement(line.toStdString()).valid,
+          expect(!KeyTag::parseAnnouncement(line.toStdString()).valid,
                  "this reply sets the key by saying it: " + line);
           // A reply beginning with a bar line would be read as somebody
           // announcing a chart. This nearly happened: dropping a provenance
@@ -61,7 +61,7 @@ public:
         // begins with a bar line, which is exactly why the header forbids
         // sending one on its own.
         for (const auto &fragment : {describeKey(r), describeChart(r)})
-          expect(!MusicalKey::parseAnnouncement(fragment).valid,
+          expect(!KeyTag::parseAnnouncement(fragment).valid,
                  "this fragment sets the key: " + fragment);
       }
     }

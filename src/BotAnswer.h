@@ -23,9 +23,9 @@
 // a stale topic makes that worse -- it can be hours old and there is no way to
 // tell from the value alone.
 //
-// NEVER SAY THE TAG. `MusicalKey::parseTagged` matches `[key:` anywhere in a
+// NEVER SAY THE TAG. `KeyTag::parseTagged` matches `[key:` anywhere in a
 // line, so a reply explaining the tag would set the key by explaining it. Every
-// string here goes through `MusicalKey::announcementAdvice`, which produces the
+// string here goes through `KeyTag::announcementAdvice`, which produces the
 // line-leading `/key` form, and `test/BotAnswerTests.cpp` asserts that nothing
 // this file produces parses as a key announcement.
 

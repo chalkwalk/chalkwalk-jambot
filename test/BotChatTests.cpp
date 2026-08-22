@@ -503,7 +503,7 @@ public:
 
     beginTest("nothing a bot composes can set the key by saying it");
     {
-      // `MusicalKey::parseTagged` matches `[key:` ANYWHERE in a line, and
+      // `KeyTag::parseTagged` matches `[key:` ANYWHERE in a line, and
       // PracticeBot acts on it wherever it appears -- so a bot explaining the
       // syntax would set the key in its own state and in every Antiphon client
       // in the room. `BotAnswer` asserts this over its own strings; nothing
@@ -536,9 +536,9 @@ public:
           if (!r.speak)
             continue;
 
-          expect(!MusicalKey::parseAnnouncement(r.text).valid,
+          expect(!KeyTag::parseAnnouncement(r.text).valid,
                  "this reply sets the key by saying it: " + juce::String(r.text));
-          expect(!MusicalKey::parseTagged(r.text).valid,
+          expect(!KeyTag::parseTagged(r.text).valid,
                  "this reply carries a key tag: " + juce::String(r.text));
           expect(!Harmony::looksLikeChart(r.text),
                  "this reply is itself a chart: " + juce::String(r.text));

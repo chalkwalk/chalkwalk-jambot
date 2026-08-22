@@ -21,24 +21,29 @@
 
 namespace Harmony = chalkwalk::music::Harmony;
 
-// The key itself, under the name the bots already use for it, plus the tag it
-// travels in.
-//
-// While this directory lived inside Antiphon the tag could not be here: that
-// project's `MusicalKey.h` opens the same namespace, and two headers defining
-// one function is a collision rather than a boundary. Separate builds, so the
-// composition comes across.
-//
-// It is COMPOSITION, not knowledge, and that is why having it on both sides is
-// not duplication. The envelope -- the brackets, the line-leading slash, what
-// a `!vote` will take -- is single-sourced in `chalkwalk::ninjam::conventions`;
-// the spelling is single-sourced in `chalkwalk::music::Notation`. What is here
-// is four lines joining them, and a library that owned the join would have to
-// depend on both, which is exactly the dependency chalkwalk-ninjam is built to
-// avoid: it takes text and returns text so that a protocol library never needs
-// a music library.
+// The key itself, under the name the bots already use for it.
 namespace MusicalKey {
 using namespace chalkwalk::music::Notation;
+} // namespace MusicalKey
+
+// The tag a key travels in, which is a room convention rather than theory.
+//
+// `KeyTag` and not `MusicalKey`, and the separation is worth more than the
+// convenience of one name: theory is what a key IS, and this is how a room
+// happens to say it. They come from different libraries and change for
+// different reasons.
+//
+// It is also what lets Antiphon hold its own copy under `MusicalKey`, which it
+// must -- a plugin reading a key out of chat should not need the band. That is
+// not duplication, because it is COMPOSITION rather than knowledge: the
+// envelope is single-sourced in `chalkwalk::ninjam::conventions` and the
+// spelling in `chalkwalk::music::Notation`. What is here is four lines joining
+// them, and a library owning the join would have to depend on both -- exactly
+// the dependency chalkwalk-ninjam is built to avoid by taking text and
+// returning text, so that a protocol library never needs a music library.
+namespace KeyTag {
+
+using Key = chalkwalk::music::Notation::Key;
 
 inline std::string tagPrefix() {
   return chalkwalk::ninjam::conventions::keyTagPrefix();
@@ -46,7 +51,8 @@ inline std::string tagPrefix() {
 
 // `[key: D minor]` anywhere in a line.
 inline Key parseTagged(const std::string &text) {
-  return parseName(chalkwalk::ninjam::conventions::extractKeyTag(text));
+  return chalkwalk::music::Notation::parseName(
+      chalkwalk::ninjam::conventions::extractKeyTag(text));
 }
 
 // The line to send. Only this form sets the key, which is why no bot may say
@@ -54,20 +60,22 @@ inline Key parseTagged(const std::string &text) {
 inline std::string buildTagged(const Key &key) {
   if (!key.valid)
     return {};
-  return chalkwalk::ninjam::conventions::buildKeyTag(displayName(key));
+  return chalkwalk::ninjam::conventions::buildKeyTag(
+      chalkwalk::music::Notation::displayName(key));
 }
 
 // A key from a chat line: the tag anywhere, or a line-leading `/key`.
 inline Key parseAnnouncement(const std::string &line) {
-  return parseName(
+  return chalkwalk::music::Notation::parseName(
       chalkwalk::ninjam::conventions::extractKeyAnnouncement(line));
 }
 
 // What a bot should tell somebody to type. Deliberately NOT the tag, because
 // saying the tag sets the key.
 inline std::string announcementAdvice(const Key &key) {
-  return chalkwalk::ninjam::conventions::keyAdviceLine(displayName(key));
+  return chalkwalk::ninjam::conventions::keyAdviceLine(
+      chalkwalk::music::Notation::displayName(key));
 }
-} // namespace MusicalKey
+} // namespace KeyTag
 
 namespace ChatFormat = chalkwalk::ninjam::conventions;
