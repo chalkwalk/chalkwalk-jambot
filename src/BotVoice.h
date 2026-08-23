@@ -1226,7 +1226,7 @@ struct PadRanges {
   Range movementHz{0.08, 0.18};
 
   // Not drawn from: fixed per character, and a correction rather than a taste.
-  double level = 1.10;
+  double level = 1.050;
   bool secondIsPulse = true;
 };
 
@@ -1251,7 +1251,7 @@ inline PadRanges padRanges(PadCharacter character) {
     r.releaseSeconds = {0.70, 1.20};
     r.drive = {0.5, 0.9};
     r.movementHz = {0.07, 0.16};
-    r.level = 1.63;
+    r.level = 1.383;
     break;
 
   case PadCharacter::Brass:
@@ -1386,7 +1386,20 @@ inline void renderPad(float *out, int numSamples, int holdSamples,
   // A slow attack is a real setting and a chord shorter than one is a real
   // situation -- two chords to a bar at a brisk tempo is under half a second
   // each -- so the attack gives way rather than swallowing the chord whole.
-  const double attack = std::min(patch.attackSeconds, holdTime * 0.6);
+  //
+  // A QUARTER of the chord, not the three-fifths this used to allow. At 0.6 a
+  // one-second chord peaked six tenths of the way through and was already
+  // releasing when you heard it, which does not read as a soft attack: it
+  // reads as playing late. The Strings character draws up to 850 ms, so at
+  // 120 bpm and eight beats to the interval it was arriving after the chord
+  // had changed. That is why the keys had to be mixed 24 dB down to be
+  // tolerable -- the fader was hiding a timing fault, not a loudness one.
+  //
+  // A quarter keeps the whole of the character where there is room for it: a
+  // chord held four beats at 100 bpm allows 600 ms, which is the full Strings
+  // swell untouched. It only bites when the chord is genuinely too short to
+  // swell into, which is the case it exists for.
+  const double attack = std::min(patch.attackSeconds, holdTime * 0.25);
   const double release = patch.releaseSeconds;
 
   // Filter cutoff, keyboard-tracked. Expressed in harmonics of the note so the
