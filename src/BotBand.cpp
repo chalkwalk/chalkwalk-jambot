@@ -1,6 +1,9 @@
 #include "Music.h"
 #include "BotBand.h"
 
+#include <cstdio>
+#include <cstdlib>
+
 #include "BotDsp.h"
 #include "BotVoice.h"
 #include <chalkwalk/music/Euclidean.h>
@@ -484,27 +487,105 @@ inline constexpr double kKitDrive = 1.8;
 // sounding like a reverb rather than a room. 0.32 costs 0.2 LU of level.
 inline constexpr float kRoomMix = 0.32f;
 
+// What this session's kit actually plays, decided once from the seed.
+//
+// Extracted so the renderer and the density trim below cannot disagree. They
+// used to be able to: recomputing `hatPulses` in a second place works only
+// while it stays the FIRST draw from that Rng, and the moment anybody adds a
+// draw above it the two answers diverge with nothing to say so.
+struct KitPattern {
+  Figure kick;
+  int snarePulses = 1;
+  int snareRotation = 1;
+  int hatSteps = 1;
+  int hatPulses = 1;
+};
+
+KitPattern kitPattern(const Settings &s) {
+  KitPattern p;
+  p.kick = kickFigure(s);
+  Rng rng(saltedSeed(Voice::Drums, s.seed) ^ 0xB5297A4DU);
+
+  // The snare answers the kick rather than rolling its own: two onsets, half an
+  // interval apart, which is the backbeat in every time signature this can be.
+  p.snarePulses = std::max(1, s.bpi / 4);
+  p.snareRotation = std::max(1, s.bpi / 4);
+
+  // Hats run at twice the beat resolution -- eighths -- which is what stops the
+  // kit sounding like three things hitting the same grid.
+  p.hatSteps = std::max(1, s.bpi * 2);
+  p.hatPulses = std::min(p.hatSteps, rng.range(s.bpi, p.hatSteps));
+  return p;
+}
+
+// What a session's kit costs in loudness, and the trim that takes it out.
+//
+// Measured over twelve seeds at 100 bpm and 16 bpi the kit spanned 6.4 LU, and
+// it correlated with crest at -0.94: loud means dense, quiet means sparse.
+// That is far more than any patch difference and it is what made a `shake`
+// move the whole mix.
+//
+// THE KICK IS THE WHOLE OF IT. Fitting the element weights against the
+// measurements puts the hat at zero and the snare at zero -- the snare because
+// it is a constant `bpi / 4`, and the hat because it is quiet enough not to
+// matter however many there are. The seed that drew the MOST hats (32) is the
+// quietest of the twelve, because it drew the fewest kicks (3).
+//
+// That was not the first guess. Weighting the hat at 0.55 made the predictor
+// track hat count instead of loudness and left the spread where it started,
+// which is the argument for fitting against a measurement rather than
+// reasoning about which drum sounds loudest.
+//
+// The correction is 10*log10, so amplitude goes as the square root: incoherent
+// sources sum in power, and the kick's 3-to-8 pulse range spans 4.3 dB by that
+// model against 4.4 dB measured.
+//
+// This corrects the SESSION, not the bar. A sparse kit should still be quieter
+// than a busy one while you are listening to it; what must not change is the
+// level you set surviving a shake.
+float kitDensityTrim(const Settings &s) {
+  const KitPattern p = kitPattern(s);
+  if (p.kick.pulses <= 0)
+    return 1.0f;
+
+  // The middle of the kick's own range, `rng.range(3, bpi / 2)`. Quoted rather
+  // than derived, and re-measured whenever the kick's figure moves.
+  constexpr float kReferencePulses = 5.5f;
+  const float raw = std::sqrt(kReferencePulses / (float)p.kick.pulses);
+
+  // Normalised so the trim averages to unity over the range the kick can draw.
+  //
+  // Without this it averages 1.04 rather than 1.0 -- the square root is convex,
+  // so the boost given to sparse seeds outweighs the cut given to dense ones --
+  // and the kit's MEAN level creeps up by about a third of a decibel. That is
+  // enough to put the kit above the bass, which `BotBandTests` asserts against
+  // and duly caught. The job here is to change the spread between seeds, not
+  // the level the band sits at.
+  const int lo = 3;
+  const int hi = std::max(3, s.bpi / 2);
+  float sum = 0.0f;
+  for (int n = lo; n <= hi; ++n)
+    sum += std::sqrt(kReferencePulses / (float)n);
+  const float mean = sum / (float)(hi - lo + 1);
+  return mean > 0.0f ? raw / mean : raw;
+}
+
 void renderDrums(const Settings &s, int intervalIndex, Phase phase, float *out,
                  float *right, int numSamples) {
   const int beatSamples = samplesPerBeat(s);
   if (beatSamples <= 0)
     return;
 
-  const Figure kick = kickFigure(s);
-  Rng rng(saltedSeed(Voice::Drums, s.seed) ^ 0xB5297A4DU);
+  const KitPattern pattern = kitPattern(s);
+  const Figure kick = pattern.kick;
 
   const auto kickVel = chalkwalk::music::accents(kick.steps, kick.pulses,
                                           kick.rotation, kick.accents);
 
-  // The snare answers the kick rather than rolling its own: two onsets, half an
-  // interval apart, which is the backbeat in every time signature this can be.
-  const int snarePulses = std::max(1, s.bpi / 4);
-  const int snareRotation = std::max(1, s.bpi / 4);
-
-  // Hats run at twice the beat resolution -- eighths -- which is what stops the
-  // kit sounding like three things hitting the same grid.
-  const int hatSteps = std::max(1, s.bpi * 2);
-  const int hatPulses = std::min(hatSteps, rng.range(s.bpi, hatSteps));
+  const int snarePulses = pattern.snarePulses;
+  const int snareRotation = pattern.snareRotation;
+  const int hatSteps = pattern.hatSteps;
+  const int hatPulses = pattern.hatPulses;
   const int halfBeat = beatSamples / 2;
 
   for (int step = 0; step < kick.steps; ++step) {
@@ -1255,9 +1336,17 @@ void renderInterval(Voice voice, const Settings &s, int intervalIndex,
   // distortion. With it here, no voice can clip whatever a trim, a seed or a
   // future character does, which is a stronger guarantee than a measured
   // headroom constant can give.
-  const float trim = s.trimOverride[(int)voice] >= 0.0
-                         ? (float)s.trimOverride[(int)voice]
-                         : kVoiceTrim[(int)voice];
+  float trim = s.trimOverride[(int)voice] >= 0.0
+                   ? (float)s.trimOverride[(int)voice]
+                   : kVoiceTrim[(int)voice];
+
+  // The kit alone is corrected for how busy this session's figure is. The
+  // other voices' seed-to-seed spread is patch draw rather than density, and a
+  // count of onsets says nothing about it -- see kitDensityTrim.
+  //
+  // Applied after any override so the band lab still sets an absolute level.
+  if (voice == Voice::Drums && s.trimOverride[(int)voice] < 0.0)
+    trim *= kitDensityTrim(s);
   for (int i = 0; i < numSamples; ++i)
     out[i] = BotDsp::softClip(out[i] * trim, BotDsp::kBandKnee,
                               BotDsp::kBandCeiling);

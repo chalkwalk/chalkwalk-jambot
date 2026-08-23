@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cmath>
+#include <vector>
 #include <cstdint>
 #include <limits>
 
@@ -417,7 +418,11 @@ inline BassPatch bassPatchFor(BassTechnique technique) {
     p.contact = 0.40;
     p.toneFloor = 6.5;
     p.toneSpan = 4.5;
-    p.gain = 1.15;
+    // Levelled against Fingered, which is the quietest of the three and so the
+    // reference: a shake redraws the technique, and a technique that arrives
+    // 1.7 dB loud moves the bass in a mix somebody has already set. Measured
+    // with `AntiphonVoiceLab bass --technique <name> --note E1`.
+    p.gain = 0.946;
     break;
 
   case BassTechnique::Muted:
@@ -436,7 +441,7 @@ inline BassPatch bassPatchFor(BassTechnique technique) {
     p.contact = 0.18;
     p.toneFloor = 4.0;
     p.toneSpan = 2.5;
-    p.gain = 1.5;
+    p.gain = 1.219; // levelled against Fingered, as Picked is
     break;
   }
 
@@ -1073,6 +1078,30 @@ struct LeadPatch {
   SynthLeadPatch synth;
 };
 
+// What each instrument needs to sit where the others do.
+//
+// A shake redraws the instrument as well as the notes, and three instruments
+// at their natural levels are not three players at the same level: measured
+// over a held A3, the electric piano came out 2.5 dB above the guitar and the
+// synth 0.9 dB above it. So a shake moved the lead in the mix, and the fader
+// you had set stopped meaning what you set it to mean.
+//
+// Normalised DOWN to the quietest rather than up to the loudest: the loud ones
+// lose headroom they had, and nothing is asked to go louder than it was built
+// to. Re-measure with `AntiphonVoiceLab solo --instrument <name> --note A3`
+// whenever an instrument is retuned; these are quoted, not derived.
+inline float leadInstrumentTrim(LeadInstrument i) {
+  switch (i) {
+  case LeadInstrument::EPiano:
+    return 0.750f; // -2.5 dB
+  case LeadInstrument::Guitar:
+    return 1.0f; // the quietest, and the reference
+  case LeadInstrument::Synth:
+    return 0.902f; // -0.9 dB
+  }
+  return 1.0f;
+}
+
 // The lead, whichever instrument is holding it.
 //
 // `holdSamples` is where the note is released; the buffer may be longer, and a
@@ -1080,20 +1109,30 @@ struct LeadPatch {
 inline void renderLead(float *out, int numSamples, int holdSamples,
                        double sampleRate, double hz, float velocity,
                        const LeadPatch &patch, std::uint32_t seed) {
+  // Applied to the OUTPUT, not to the velocity. Velocity drives timbre in all
+  // three of these -- a softly struck piano is darker, not merely quieter --
+  // so trimming it there would correct the level by changing the sound, which
+  // is the one thing a level correction must not do.
+  const float trim = leadInstrumentTrim(patch.instrument);
+
   switch (patch.instrument) {
   case LeadInstrument::EPiano:
     renderEPiano(out, numSamples, holdSamples, sampleRate, hz, velocity,
                  patch.epiano, seed);
-    return;
+    break;
   case LeadInstrument::Guitar:
     renderGuitar(out, numSamples, holdSamples, sampleRate, hz, velocity,
                  patch.guitar, seed);
-    return;
+    break;
   case LeadInstrument::Synth:
     renderLeadSynth(out, numSamples, holdSamples, sampleRate, hz, velocity,
                     patch.synth, seed);
-    return;
+    break;
   }
+
+  if (trim != 1.0f)
+    for (int i = 0; i < numSamples; ++i)
+      out[i] *= trim;
 }
 
 // What the keyboard player brought to the session.
@@ -1530,5 +1569,27 @@ inline void renderPad(float *out, int numSamples, int holdSamples,
     out[i] += velocity * 0.30f * (float)patch.level * (float)env * filtered;
   }
 }
+
+// NOT levelled by a probe render, and the attempt is recorded because the
+// reasoning for it is sound and somebody will have it again.
+//
+// Every seed draws its own cutoff, resonance, drive and envelope inside a
+// character's ranges, and measured on one sustained note at middle C that draw
+// spans 4.0 LU on Strings, 3.3 on Brass and 4.5 on Poly. The obvious fix is to
+// render half a second of the patch when a bot picks it, measure, and trim --
+// no model to go stale, correct by construction whenever the synth changes.
+//
+// It was built, and it made things WORSE: band-context spread went from 1.8 LU
+// to 2.1, through three variants (flat RMS, pre-emphasised RMS, and retargeted
+// so the mean held). The reason is that the probe measures ONE SUSTAINED NOTE
+// and the keys are never heard that way -- they play three and four note
+// voicings across registers, several chords to an interval, and the per-draw
+// variance largely cancels over that. So the probe was correcting a spread
+// context had already removed, and contributing its own error instead.
+//
+// The lesson is about the measurement, not the mechanism: a 4 LU figure taken
+// on a single note is not the 1.8 LU the same voice shows in the mix, and
+// levelling against the first makes the second worse.
+
 
 } // namespace BotVoice
