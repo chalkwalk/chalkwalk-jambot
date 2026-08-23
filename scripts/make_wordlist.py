@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate src/jambot/BotDictionary.h -- the real-word gate for typo repair.
+"""Generate src/BotDictionary.h -- the real-word gate for typo repair.
 
 BotLanguage repairs a word it does not recognise by looking for the nearest
 lexicon entry within a small edit budget. That is only safe if we can tell a
@@ -27,7 +27,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCE = "/usr/share/dict/british-english"
-OUT = os.path.join(ROOT, "src", "jambot", "BotDictionary.h")
+OUT = os.path.join(ROOT, "src", "BotDictionary.h")
 
 # Must match BotLanguage.cpp: plain Damerau-Levenshtein, one edit up to five
 # characters and two beyond. One extra edit of slack, so that adding or
@@ -54,7 +54,7 @@ def cost(a, b, ceiling):
 
 
 def lexicon():
-    src = open(os.path.join(ROOT, "src", "jambot", "BotLanguage.cpp"), encoding="ascii").read()
+    src = open(os.path.join(ROOT, "src", "BotLanguage.cpp"), encoding="ascii").read()
     words = set()
     for table in ("kLexicon", "kClassed"):
         m = re.search(r"const \w+ %s\[\] = \{(.*?)\n\};" % table, src, re.S)
@@ -71,7 +71,21 @@ def main():
         sys.exit("no word list at %s (apt install wbritish)" % SOURCE)
 
     lex = lexicon()
-    words = set()
+
+    # This application's own vocabulary, which a general word list does not
+    # have. `bots` is the plural of the noun this whole library is about and
+    # SCOWL does not carry it, so it was eligible for typo repair -- and it is
+    # two edits from `bass`, which is how "start you band of bots!" came to
+    # address the bass player and nobody else.
+    #
+    # A real word is not a mistyped one, and these are real words here even
+    # where a dictionary of English disagrees.
+    DOMAIN = ["bot", "bots", "bpm", "bpi", "ninjam", "jam", "jams",
+              "jamming", "riff", "riffs", "comp", "comping", "vamp",
+              "vamping", "downbeat", "backbeat", "upbeat", "fill", "fills",
+              "groove", "grooves", "shuffle", "swung"]
+
+    words = set(DOMAIN)
     for line in open(SOURCE, encoding="utf-8", errors="ignore"):
         w = line.strip().lower()
         if w.isalpha() and w.isascii() and 2 <= len(w) <= 16:

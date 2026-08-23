@@ -128,6 +128,11 @@ ALL     band what are you playing
 ALL     you lot what are you playing
 ALL     everybody whats your part
 ALL     all of you shake
+# Reported from a real room: this started the BASS alone. "band" is in the
+# sentence and should carry it, and nothing here names or implies one player.
+ALL     start you band of bots!
+ALL     start your band of bots
+ALL     come on band of bots
 ALL     everyone quiet
 ALL     band, leave
 

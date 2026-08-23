@@ -1139,11 +1139,47 @@ void renderLead(const Settings &s, int intervalIndex, int noNewNotesAfter,
 // than about half a decibel -- tuning a trim against material that moves by
 // four would be false precision. Making a seed's density not change the band's
 // level is a real piece of work and is on the roadmap.
+// BALANCE IS DELIBERATE INEQUALITY, not equality.
+//
+// These used to level the four voices to roughly the same loudness, and that
+// was the wrong target. A mix is not four things at one volume: some parts
+// show through and some sit under, and which is which is a decision. Levelled
+// flat, the band arrived needing the same four fader moves every time.
+//
+// The numbers come from the same listener making the same mix twice, on two
+// different sessions, and agreeing with themselves:
+//
+//     session 1   bass 0, lead -3, kit -12, keys -20
+//     session 2   bass 0, lead -6, kit -12, keys -20
+//
+// So: bass carries, the lead sits a few decibels under it, the kit is well
+// down, and the keys are a long way down -- which is what a pad is for. The
+// lead is the mean of the two.
+//
+// Measured relative levels before this change were bass 0, lead +0.6, kit
+// +2.0, keys -1.9: flat, and two of them above the bass.
+//
+// The band is about 4 dB quieter than it was, and that is the price of the
+// balance rather than an oversight.
+//
+// Folding a common +3.8 dB back in to restore the old level was tried, and it
+// put the BASS into the soft clipper: at 120 bpm and eight beats its downbeat
+// hit 0.94 against a 0.95 ceiling, the accent was flattened, and the
+// dynamics ratio fell to 1.34 -- which "the bass is played rather than typed"
+// records as the value a part with NO dynamics produces. A band led by the
+// bass cannot also be as loud as one levelled flat, because the loudest voice
+// is now carrying what four used to share.
+//
+// Quieter is the cheaper loss: a fader fixes it and nothing fixes a squashed
+// accent.
+//
+// Re-measure with `AntiphonVoiceLab band --only <voice>` over a dozen seeds;
+// these are quoted, not derived, and they move whenever a voice is retuned.
 inline constexpr float kVoiceTrim[kNumVoices] = {
-    1.71f, // Drums
-    1.67f, // Bass
-    0.32f, // Keys
-    1.15f, // Lead
+    0.341f,  // Drums -- 12 dB under the bass
+    1.670f,  // Bass  -- the reference, and what carries the band
+    0.0398f, // Keys  -- 20 dB under, which is where a pad belongs
+    0.639f,  // Lead  -- 4.5 dB under
 };
 
 // How this bass player plays, chosen once and then held for the whole session.

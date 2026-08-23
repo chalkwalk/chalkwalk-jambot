@@ -47,7 +47,7 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(ROOT, "src", "jambot", "BotLanguage.cpp")
+SRC = os.path.join(ROOT, "src", "BotLanguage.cpp")
 CORPUS = os.path.join(ROOT, "test", "fixtures", "bot-phrases.txt")
 
 # Words the engine deliberately drops. A gap report full of "the" is a gap
@@ -97,7 +97,7 @@ def _stems():
     if not os.path.exists(prog) or os.path.getmtime(SRC) > os.path.getmtime(prog):
         os.makedirs(os.path.dirname(prog), exist_ok=True)
         open(source, "w").write(
-            '#include "../src/jambot/BotLanguage.h"\n#include <iostream>\n'
+            '#include "../src/BotLanguage.h"\n#include <iostream>\n'
             "int main(){std::string w;while(std::getline(std::cin,w))"
             "std::cout<<BotLanguage::stem(w)<<\"\\n\";}\n")
         # The shared libraries are on the include path because BotLanguage

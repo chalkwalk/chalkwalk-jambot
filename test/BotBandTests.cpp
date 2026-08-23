@@ -589,7 +589,11 @@ public:
       const auto buf = render(BotBand::Voice::Drums,
                               settingsFor("C major", 120, 8, 1u));
       const float level = rms(buf, 0, (int)buf.size());
-      expect(level > 0.12f,
+      // Scaled with the kit's trim when the band was mixed rather than
+      // levelled: the kit sits 12 dB under the bass now, so the floor that
+      // discriminated the failures above moves with it. The RATIOS the comment
+      // quotes are what matter, and they are unchanged.
+      expect(level > 0.030f,
              "the kit came out at rms " + juce::String(level, 5));
     }
 
@@ -775,13 +779,23 @@ public:
       expect(keys < kit, "the chords should sit under the kit" + at);
       expect(keys < bass && keys < lead, "the chords should be the floor" + at);
 
-      // And nothing buried: the old failure was a 10 dB spread the wrong way
-      // round, so the width of the band is the thing to bound.
-      const double loudest = juce::jmax(juce::jmax(kit, bass), juce::jmax(keys, lead));
-      const double quietest = juce::jmin(juce::jmin(kit, bass), juce::jmin(keys, lead));
-      expect(loudest - quietest < 8.0,
-             "the band spans " + juce::String(loudest - quietest, 1) +
-                 " dB, which is a mix rather than a balance" + at);
+      // The band is MIXED, not levelled, and this is where that decision is
+      // written down. It used to assert a span under 8 dB -- "a mix rather
+      // than a balance" -- which had it exactly backwards: balance is
+      // deliberate inequality, and four voices at one volume is what made the
+      // band need the same four fader moves every session.
+      //
+      // The targets come from one listener building the same mix twice on two
+      // sessions and agreeing with themselves. Two decibels either side,
+      // because the voices' own seed-to-seed spread is wider than that and
+      // tuning tighter would be fitting to noise.
+      const auto under = [&](double v) { return bass - v; };
+      expectWithinAbsoluteError(under(lead), 4.5, 2.0,
+                                "the lead should sit just under the bass" + at);
+      expectWithinAbsoluteError(under(kit), 12.0, 2.0,
+                                "the kit should sit well under the bass" + at);
+      expectWithinAbsoluteError(under(keys), 20.0, 2.0,
+                                "the chords should sit a long way under" + at);
     }
 
     beginTest("nothing clips");

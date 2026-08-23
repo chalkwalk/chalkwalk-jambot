@@ -1,5 +1,7 @@
 #include "BotAddress.h"
 
+#include "BotDictionary.h"
+
 #include <algorithm>
 #include <cctype>
 
@@ -61,6 +63,22 @@ int nearMissBudget(const std::string &target) {
 bool couldBeTypoOf(const std::string &token, const std::string &target) {
   if (token.empty() || target.empty() || token[0] != target[0])
     return false;
+
+  // A REAL WORD IS NOT A MISTYPED ONE.
+  //
+  // `BotLanguage` has held this rule since it learned to repair typos, and
+  // this file did not -- so the module deciding WHAT a message asks refused to
+  // rewrite a real word, while the module deciding WHO it is for would.
+  //
+  // "start you band of bots!" addressed the bass player and nobody else. Both
+  // start with b, `bots` is two edits from `bass`, and two is the budget for a
+  // four-letter target -- so the plural of the word this whole library is
+  // about read as a typo for an instrument. The first-letter guard below was
+  // added to stop "the tempo is too fast" summoning the bass, and it does not
+  // help here at all.
+  if (BotDictionary::isWord(token))
+    return false;
+
   return editDistance(token, target) <= nearMissBudget(target);
 }
 
@@ -376,11 +394,29 @@ Address classify(const Room &room, const std::string &me, const Incoming &msg,
   const auto positions = addressPositions(rawTokens, room);
   const auto leadingRun = leadingPositions(rawTokens, room);
 
-  // Two-word collectives, which the token scan cannot see.
+  // Multi-word collectives, which the token scan cannot see.
   bool collectivePhrase = false;
   if (rawTokens.size() >= 2 && rawTokens[0] == "you" &&
       (rawTokens[1] == "lot" || rawTokens[1] == "all" || rawTokens[1] == "two"))
     collectivePhrase = true;
+
+  // "band of bots", anywhere in the sentence.
+  //
+  // A bare `band` only counts where it OPENS the message, for the reason given
+  // at that check: "nice band" and "the band is tight" are ordinary things to
+  // say and a bot answering them is the poltergeist this file exists to
+  // prevent. But "band of bots" is not something anybody says ABOUT this band
+  // in passing -- it is only ever said TO it, which is why it can be matched
+  // wherever it falls.
+  //
+  // Reported from a real room: "start you band of bots!" started the bass
+  // player alone, because `bots` read as a typo of `bass`. That half is fixed
+  // in couldBeTypoOf; this is the other half, which is that the sentence is
+  // plainly addressed to all four and nothing here could see it.
+  for (size_t i = 0; i + 2 < rawTokens.size(); ++i)
+    if (rawTokens[i] == "band" && rawTokens[i + 1] == "of" &&
+        (rawTokens[i + 2] == "bots" || rawTokens[i + 2] == "yours"))
+      collectivePhrase = true;
   const bool interrogative = looksInterrogative(rawTokens, msg.text);
 
   bool indefinite = false;
