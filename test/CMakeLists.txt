@@ -18,6 +18,7 @@ add_executable(chalkwalk_jambot_tests
     BotDspTests.cpp
     BotLanguageTests.cpp
     BotNamesTests.cpp
+    ConductorTests.cpp
     PracticeBotTests.cpp)
 
 target_link_libraries(chalkwalk_jambot_tests

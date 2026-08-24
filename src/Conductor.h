@@ -23,6 +23,19 @@
 // command line. `std::condition_variable` rather than a sleep because stopping
 // has to be prompt: an interval is seconds long and a process that waits one
 // out before exiting reads as hung.
+//
+// SLICED, so the work does not all land on the boundary. A band rendered every
+// voice back to back at the top of the interval, which is one long contiguous
+// burst of compute -- the shape most likely to starve an audio callback on a
+// busy machine. The interval is divided into `slices` instead and the callback
+// is invoked once per slice at its own offset, so a caller with one voice per
+// slice spreads the same total work across the interval.
+//
+// The slack is real rather than borrowed: Ninjam transmits interval N while
+// N-1 is playing, so a voice rendered three quarters of the way through the
+// interval still reaches the server in time to be heard. What this does NOT do
+// is make the work cheaper -- one thread doing the same total in smaller
+// pieces -- and that distinction is the whole point of it.
 
 namespace jambot {
 
@@ -33,6 +46,12 @@ public:
   // voices is not free -- and the loop accounts for that below.
   using RenderInterval = std::function<void(int intervalIndex)>;
 
+  // The sliced form: called `slices` times per interval, at even offsets
+  // through it, with the slice index alongside the interval's. Slice 0 is on
+  // the boundary, so a one-slice conductor behaves exactly as this class did
+  // before slicing existed.
+  using RenderSlice = std::function<void(int intervalIndex, int slice)>;
+
   Conductor() = default;
   ~Conductor() { stop(); }
 
@@ -40,12 +59,22 @@ public:
   Conductor &operator=(const Conductor &) = delete;
 
   void start(double intervalSeconds, RenderInterval render) {
+    if (!render)
+      return;
+    start(intervalSeconds, 1,
+          [render = std::move(render)](int intervalIndex, int) {
+            render(intervalIndex);
+          });
+  }
+
+  void start(double intervalSeconds, int slices, RenderSlice render) {
     stop();
-    if (intervalSeconds <= 0.0 || !render)
+    if (intervalSeconds <= 0.0 || slices <= 0 || !render)
       return;
 
     running = true;
-    thread = std::thread([this, intervalSeconds, render = std::move(render)] {
+    thread = std::thread([this, intervalSeconds, slices,
+                          render = std::move(render)] {
       using clock = std::chrono::steady_clock;
       const auto period = std::chrono::duration_cast<clock::duration>(
           std::chrono::duration<double>(intervalSeconds));
@@ -54,21 +83,30 @@ public:
       int intervalIndex = 0;
 
       while (running.load()) {
-        {
-          std::unique_lock<std::mutex> lock(wakeMutex);
-          // Predicated to close the lost-wakeup window, not to speed up the
-          // common case: a `stop()` whose notify lands BEFORE this thread
-          // reaches the wait would otherwise be missed, and the band would
-          // play on for up to a whole interval after being told to stop. The
-          // predicate is checked before waiting, so the notification cannot
-          // be overtaken.
-          if (wake.wait_until(lock, nextDue, [this] { return !running.load(); }))
+        for (int slice = 0; slice < slices; ++slice) {
+          // Offsets are computed from the interval's start rather than
+          // accumulated, so a slow slice cannot push the ones after it and the
+          // grid stays anchored to the boundary.
+          const auto sliceDue = nextDue + (period * slice) / slices;
+          {
+            std::unique_lock<std::mutex> lock(wakeMutex);
+            // Predicated to close the lost-wakeup window, not to speed up the
+            // common case: a `stop()` whose notify lands BEFORE this thread
+            // reaches the wait would otherwise be missed, and the band would
+            // play on for up to a whole interval after being told to stop. The
+            // predicate is checked before waiting, so the notification cannot
+            // be overtaken.
+            if (wake.wait_until(lock, sliceDue,
+                                [this] { return !running.load(); }))
+              return;
+          }
+          if (!running.load())
             return;
-        }
-        if (!running.load())
-          return;
 
-        render(intervalIndex++);
+          render(intervalIndex, slice);
+        }
+
+        ++intervalIndex;
         nextDue += period;
 
         // If the band overran -- a breakpoint, a stalled machine -- skip
