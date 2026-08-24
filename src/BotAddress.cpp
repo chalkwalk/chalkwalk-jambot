@@ -98,7 +98,21 @@ const InstrumentWord kInstrumentWords[] = {
     {"melody", "lead"},   {"tutor", "tutor"},  {"teacher", "tutor"},
 };
 
-const char *kCollectives[] = {"everyone", "everybody", "all", "band", "yall"};
+// "bots" belongs here for the same reason "band" does: it is what a player
+// calls this lot when addressing all of them. It is safe alongside the
+// leading-position rule below -- "the bots are loud" is a remark, "bots, start
+// playing" is an instruction, and only the second opens with it.
+const char *kCollectives[] = {"everyone", "everybody", "all",
+                              "band",     "bots",      "yall"};
+
+// Verbs a player uses to drive the BAND, as the first thing they say.
+//
+// These are what let a collective word be matched away from the front of the
+// message. "start playing band" and "stop playing band" put the address last,
+// which is ordinary English and was silently ignored; "nice band" and "the
+// band is really tight" are the cases the leading-position rule exists to
+// refuse, and neither of them opens with one of these.
+const char *kBandCommandVerbs[] = {"start", "stop", "play", "keep", "carry"};
 
 const char *kQuestionOpeners[] = {
     "what",  "whats", "who",   "whos",  "how",   "hows",  "why",
@@ -417,6 +431,28 @@ Address classify(const Room &room, const std::string &me, const Incoming &msg,
     if (rawTokens[i] == "band" && rawTokens[i + 1] == "of" &&
         (rawTokens[i + 2] == "bots" || rawTokens[i + 2] == "yours"))
       collectivePhrase = true;
+
+  // "bot band", anywhere, on the same reasoning: nobody says it ABOUT this
+  // band in passing, only TO it.
+  for (size_t i = 0; i + 1 < rawTokens.size(); ++i)
+    if (rawTokens[i] == "bot" && rawTokens[i + 1] == "band")
+      collectivePhrase = true;
+
+  // Does the message OPEN with something the band is told to do? If so a
+  // collective word counts wherever it falls, because the sentence is already
+  // an instruction and the only question left is who it is for.
+  bool commandOpening = false;
+  for (size_t i = 0; i < rawTokens.size() && i < 2; ++i) {
+    if (inList(kBandCommandVerbs, rawTokens[i])) {
+      commandOpening = true;
+      break;
+    }
+    // Steps over one softener -- "please start playing band", "ok stop band"
+    // -- and no further, so the verb still has to be at the front.
+    if (rawTokens[i] != "please" && rawTokens[i] != "ok" &&
+        rawTokens[i] != "okay" && rawTokens[i] != "hey")
+      break;
+  }
   const bool interrogative = looksInterrogative(rawTokens, msg.text);
 
   bool indefinite = false;
@@ -488,7 +524,7 @@ Address classify(const Room &room, const std::string &me, const Incoming &msg,
     // band", "the band is tight", "that's all" -- and a bot answering those is
     // the poltergeist this whole file exists to prevent. Every collective
     // address anybody actually writes puts the word first.
-    if (inList(kCollectives, t) && leadingRun[i]) {
+    if (inList(kCollectives, t) && (leadingRun[i] || commandOpening)) {
       collective = true;
       hit = true;
     }

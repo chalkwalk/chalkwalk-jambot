@@ -136,6 +136,26 @@ ALL     come on band of bots
 ALL     everyone quiet
 ALL     band, leave
 
+# A collective does not have to OPEN the message. It only has to be clear that
+# the message is an instruction to the band, and a verb at the front settles
+# that -- "start playing band" is as ordinary as "band, start playing" and was
+# silently ignored. The remarks below still get nothing.
+ALL     start playing band
+ALL     stop playing band
+ALL     please start playing band
+ALL     start playing bots
+ALL     keep playing band
+
+# "bots" is what a player calls this lot. Leading, like any bare collective.
+ALL     bots, start playing
+ALL     bots start playing
+ALL     bots what are you playing
+
+# "bot band" anywhere, for the same reason as "band of bots": it is only ever
+# said TO them. Trailing clauses do not change who it is for.
+ALL     start playing bot band, and make it good
+ALL     the bot band should start playing
+
 # Kit answered this speaker on the previous turn, within the window. Follow-ups
 # continue without repeating the name.
 [AFTER_KIT]
@@ -214,6 +234,12 @@ NOBODY  can someone turn the keys down
 NOBODY  my guitar is out of tune
 NOBODY  nice band
 NOBODY  the band is really tight
+# The controls for the rule above: a remark that happens to contain a
+# collective is still a remark. None of these opens with an instruction.
+NOBODY  that band is tight
+NOBODY  i love the bots
+NOBODY  the bots are loud
+NOBODY  we should start a band
 NOBODY  im switching to guitar
 
 # dave's channel is called "guitar", so a bare "guitar" is about dave. The room

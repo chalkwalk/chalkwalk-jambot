@@ -211,6 +211,30 @@ BotBand::Phase phaseFor(BandPlayState::State s) {
 }
 } // namespace
 
+void PracticeBot::beginInterval() {
+  std::lock_guard<std::mutex> sl(stateMutex);
+  latched = playState.current();
+  playState.advance();
+  latchTaken = true;
+}
+
+void PracticeBot::refreshLatch() {
+  std::lock_guard<std::mutex> sl(stateMutex);
+  latched = playState.current();
+  latchTaken = true;
+}
+
+BandPlayState::State PracticeBot::latchedPhase() const {
+  std::lock_guard<std::mutex> sl(stateMutex);
+  return latched;
+}
+
+bool PracticeBot::startPending() const {
+  std::lock_guard<std::mutex> sl(stateMutex);
+  return latched == BandPlayState::State::Silent &&
+         playState.current() == BandPlayState::State::Playing;
+}
+
 BandPlayState::State PracticeBot::playPhase() const {
   std::lock_guard<std::mutex> sl(stateMutex);
   return playState.current();
@@ -837,12 +861,20 @@ void PracticeBot::renderInterval(int numSamples, int intervalIndex) {
   {
     std::lock_guard<std::mutex> sl(stateMutex);
     r = render;
-    // Sampled ONCE, and the state advanced ONCE, for this interval. Reading it
-    // again part-way through would tear an interval across two states, and
-    // delivery is all-or-nothing -- half an ending is not something the
-    // protocol can carry.
-    phase = playState.current();
-    playState.advance();
+    // Whatever `beginInterval` latched, and nothing sampled here. Reading the
+    // state again at render time would tear an interval across two states --
+    // and with the band's renders spread across the interval it would tear the
+    // BAND across two states, which is worse and is what this replaces.
+    //
+    // A bot rendered without a latch is one the room never announced an
+    // interval to; fall back to sampling so a direct caller (a test driving one
+    // bot, with no room around it) still behaves as it always did.
+    if (!latchTaken) {
+      latched = playState.current();
+      playState.advance();
+    }
+    latchTaken = false;
+    phase = latched;
   }
   if (!r)
     return; // A silent bot is a valid bot.

@@ -114,6 +114,34 @@ public:
   BotClient::Client &client() { return *netClient; }
 
   // Conductor thread. A no-op once parted.
+  // Latch the phase this bot will render for the interval about to start, and
+  // advance the state machine once for it.
+  //
+  // Split out of `renderInterval` because a band's renders are SPREAD across
+  // the interval -- one bot per conductor slice, so the compute does not all
+  // land on the boundary -- and a decision taken inside each render is taken
+  // at four different times. Asked to stop mid-interval, the bots that had
+  // already rendered kept playing an interval longer than the ones that had
+  // not, and the last interval of the ending had only half a band in it.
+  //
+  // So: the WORK is spread and the DECISION is not. The room calls this for
+  // every bot at the head of the interval, and each bot then renders whatever
+  // was latched for it whenever its turn comes round.
+  void beginInterval();
+
+  // Re-read the play state into the latch WITHOUT advancing, for a start that
+  // arrives mid-interval and can still be honoured inside it. Advancing twice
+  // in one interval would eat an interval of an ending.
+  void refreshLatch();
+
+  // What `beginInterval` latched. `Silent` renders and transmits nothing.
+  BandPlayState::State latchedPhase() const;
+
+  // True when a start has landed since the latch was taken, so this bot would
+  // play if the room re-latched it. The room asks every bot, because the band
+  // starts together or not at all.
+  bool startPending() const;
+
   void renderInterval(int numSamples, int intervalIndex);
 
   // The commands a bot answers to by private message, from anyone in the room.
@@ -242,6 +270,11 @@ private:
   // the render: reading it again part-way would tear an interval across two
   // states, and interval delivery is all-or-nothing.
   BandPlayState playState;
+
+  // The phase this interval is being rendered at, taken once at its head. See
+  // `beginInterval`.
+  BandPlayState::State latched = BandPlayState::State::Silent;
+  bool latchTaken = false;
 
   BotClient::ClientPtr netClient;
   // Two channels, kept between intervals. A bot renders into these and hands
