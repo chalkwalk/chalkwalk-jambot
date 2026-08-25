@@ -1873,3 +1873,194 @@ chorus this whole design exists to prevent.
   present can already dismiss them, which covers the real need.
 - **Per-voice stop scheduling** -- "drop the keys for this section". That is
   arrangement, and it belongs with staggered rests in `ROADMAP.md`, not here.
+
+## 16. A band of more than four
+
+Four is a good practice room and a bad ceiling. A jam that wants two guitars,
+or a horn stabbing over a pad, or a percussionist beside the kit, cannot ask
+for it -- and the reason is not musical, it is that the band is four hardcoded
+voices and each of them IS its synthesis.
+
+This section is the design for a band of any size up to eight. It is written
+before any of it is built, and the thing it is most concerned with is that
+adding a player must not change what the players already there are doing.
+
+### 16.1 Two layers: strata and roles
+
+The mistake to avoid is a roster of eight independent parts. Eight independent
+rhythmic ideas is not a band, it is a queue, and no amount of mixing rescues
+it.
+
+So there are **four rhythmic strata**, and any number of players attach to one:
+
+| stratum | what it is |
+|---|---|
+| foundation | the time itself: kick, bass, percussion |
+| pad | the harmony as duration -- what is sounding, and for how long |
+| lead | the line somebody is following |
+| accent | the punctuation: hits, stabs, the thing that lands |
+
+A **role** is then a triple: which stratum it plays on, which register it
+occupies, and how it relates to the stratum's figure.
+
+**Half of this already exists, unnamed.** `figureFor` gives each voice its own
+figure from a salted seed -- except the bass, which is derived from the kick's
+figure explicitly, to lock to it without doubling it. That is a stratum
+relationship written once as a special case. And the keys have no rhythmic
+figure at all, because the chord changes are the rhythm: a pad stratum whose
+onsets come from the harmony. Generalising those two facts is the work.
+
+### 16.2 The full part, and selecting from it
+
+Players sharing a stratum need to know two things: what the whole is meant to
+be, and which of it is theirs. So the stratum computes a **full part** for the
+interval -- a figure of onsets with strengths, plus the harmonic content where
+it is pitched -- and each role carries a **selection policy** over it and a
+**realisation style** for what it selects.
+
+Nobody invents rhythm at the leaf. Everyone is quoting one figure, which is
+what makes the aggregate cohere without anybody coordinating.
+
+| # | role | stratum | selects | realises as |
+|---|---|---|---|---|
+| 1 | rhythm | foundation | the whole figure | kit |
+| 2 | bass | foundation | complement of the kick | sustained pitch |
+| 3 | chords | pad | the chord-change onsets | pad, stabs or arp |
+| 4 | lead | lead | the lead stratum's onsets | melodic shaping |
+| 5 | accent | accent | the strong-onset subset | short, struck |
+| 6 | chord double | pad | a subset of the chords' onsets | whichever style chords is not |
+| 7 | perc | foundation | complement of the kit figure | percussive |
+| 8 | backup melody | lead | complement of the lead's phrase | melodic shaping |
+
+**The second member of a stratum is always a subset or a complement of the
+first, never an independent idea.** One rule, not eight special cases, and it
+is the rule the bass already follows against the kick.
+
+Bass is second, not third. A kit and a bass is a rhythm section and sounds like
+a decision; a kit and a comping instrument with no bottom sounds like something
+is missing. The measured mix agrees -- the bass is the 0 dB reference that
+carries the band and everything else sits under it (`BotBand.cpp`, `kVoiceTrim`).
+
+### 16.3 It reproduces the current quartet, which is how it gets tested
+
+At N=4 the roles are rhythm, bass, chords, lead -- kit, bass, keys, lead, which
+is the band that exists. The one coverage rule that bites at four is that with
+no accent player the chords take the stabs, which is roughly what the keys do
+already.
+
+That is deliberate and it is the most useful property here. The model can land
+without changing what the practice room sounds like, so it is verifiable
+against a band already tuned by ear over two listening sessions rather than
+being a rewrite whose output nobody can judge.
+
+### 16.4 Roles accumulate, and one coverage rule
+
+Players take roles in the order above. The Nth player plays the Nth role and
+its behaviour does not otherwise depend on N.
+
+A trio is therefore a quartet minus one rather than its own arrangement. The
+alternative -- an ensemble template per size, where a trio's pianist covers
+what a quartet's accent player would -- is musically truer and costs a thing to
+tune and test at every size. The compromise: accumulate, plus **coverage
+rules** naming who absorbs an unfilled stratum.
+
+With accumulation the only unfilled strata at small N are accent and the
+doubles, and a pad alone is a pad. So the whole coverage table is one entry:
+
+- **No accent player: the chords take the accent onsets.**
+
+Resist adding more until a specific size is heard to be wrong.
+
+### 16.5 The mix is budgeted per stratum, not per player
+
+The trims are per voice today: bass 0, lead -4.5, kit -12, keys -20, set by one
+listener agreeing with themselves across two sessions. Add a second chord
+instrument at the keys' level and the pad stratum is 3 dB louder and that
+balance is gone -- not because anything is wrong, but because "add a player"
+silently became "change the mix".
+
+So the **stratum** holds the level budget and its members divide it. Adding the
+chord double then makes the pad richer without making it louder.
+
+Without this rule a band of more than four is not worth having, because every
+roster size would need retuning by hand.
+
+### 16.6 Instruments carry family tags; roles require them
+
+An instrument is timbre and nothing else. Which instrument may take which role
+is decided by **tags** rather than by a pitch range -- `percussive`,
+`sustaining`, `plucked`, `struck`, `bowed`, `polyphonic`, `monophonic`,
+`bass-register`, `mid-register`, `lead-register` -- and a role names the tags it
+requires.
+
+Looser than a numeric window, which would need a number per instrument that
+nobody can defend; stricter than free choice, which puts a tuba on the lead.
+It is also what a General MIDI bank can eventually be selected against, since a
+GM program is exactly a timbre with obvious tags.
+
+### 16.7 Identity: the role is in the CHANNEL name, not the username
+
+An earlier draft put the role in the username, on the reasoning that a username
+is fixed at `CLIENT_AUTH_USER` and a role is fixed for the session. The second
+half is false: roles change when a player leaves and the band closes ranks, and
+when somebody asks a bot to switch. A role in the username means a rejoin to
+change one, and a rejoin means the band visibly leaving and coming back to
+rearrange itself.
+
+So:
+
+- **Username: `Name[bot]`.** Identity and the bot marker. Never changes.
+- **Channel name: `role: instrument`** -- `chords: rhodes`, `bass: fingered`.
+  Both halves mutable, re-sent with `CLIENT_SET_CHANNEL_INFO`, broadcast to
+  every client in the room.
+
+Role first because it is what says what the part is and what you would address;
+the instrument qualifies it. It also groups sensibly when a client sorts
+channels, so the chord players sit together.
+
+This removes the rejoin problem completely, and it is addressable: every client
+already receives channel names, and Antiphon keeps them per remote channel.
+
+**What it costs.** Addressing matches a static instrument vocabulary today.
+Resolving "bass" to a username means reading live channel names, so addressing
+comes to depend on state that arrives asynchronously -- a bot that has just
+changed role stays briefly addressable by the old one. That is a real change to
+`BotAddress` rather than a rename, and the brief ambiguity is accepted.
+
+### 16.8 The name pool has to grow first, and the reason is exact
+
+The pool holds eight names, and it deliberately contains conflicting pairs --
+`Vurn` shares `Mirn`'s rime, `Pemo` shares `Pundo`'s initial -- because those
+are constraints on which four play TOGETHER, which `bandFor` enforces, not on
+which eight exist.
+
+At N=8 there is no choice left. Every conflict co-occurs, and `bandFor`'s
+distinctness rule has nothing to select against. So the pool grows to about
+twenty under the same construction rules -- short, typeable, unambiguous when
+spoken, distinct in rime and initial from the others in any one band -- before
+eight is a size that can be fielded at all. The tutor stays outside the pool.
+
+### 16.9 Who brings a bot in
+
+- **At startup**: the room is told how many to bring.
+- **In session**: the **tutor** brings one in. It is already the bot whose job
+  is the session rather than the music, and recruiting a bass player is an
+  arranging act. A playing bot recruiting another makes the band
+  self-replicating and puts the cap somewhere arbitrary.
+- **The cap belongs to the room**, not to the tutor: enforced where bots are
+  actually created, so no chat path can exceed it whatever any bot decides.
+  Eight in the practice room, four elsewhere -- the full roster where it costs
+  nobody, a quartet where it shares a server with strangers.
+
+### 16.10 What this does not settle
+
+- **What a role change SOUNDS like.** A bot switching from chords to bass
+  mid-tune changes the arrangement underneath a phrase. It probably wants the
+  same treatment as an ending: take effect at an interval boundary, and
+  possibly only at a phrase boundary. Unexamined.
+- **Whether the tutor can also remove a bot**, and what that does to the roles
+  below it.
+- **Cost.** The quartet is about 27% of a core; eight is about 54% plus eight
+  Ogg encodes and eight uploads. `ROADMAP.md` already concludes that the
+  longest render comes down by making a voice cheaper rather than by scheduling
+  it better. That work is a prerequisite for six-plus, not a companion to it.
