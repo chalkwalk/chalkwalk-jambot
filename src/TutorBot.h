@@ -84,9 +84,13 @@ private:
                           const float *left, const float *right,
                           int numSamples) override;
 
-  // Says the line for the current step and moves to the next. Takes the lock
-  // itself; callers must not hold it.
-  void advance(const std::string &line);
+  // Says the line for `from` and moves to the next step, if the thread is
+  // still at `from`. Takes the lock itself; callers must not hold it.
+  //
+  // The step is the argument and the line is derived from it, so a caller
+  // cannot pair one step's line with another's -- see the note at the
+  // definition for the race that makes this worth enforcing.
+  void advance(Step from);
 
   // Counts the run of agreeing readings and says the row's line if this is the
   // interval that completes it. Returns nothing: whether the thread moves on is

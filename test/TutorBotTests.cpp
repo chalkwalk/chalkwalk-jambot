@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -37,6 +38,18 @@ public:
   // One interval that arrives and is audible, but only just.
   void playsQuietly(const std::string &who, int numSamples = 48000) {
     std::vector<float> block((std::size_t)numSamples, 0.003f);
+    sends(who, block);
+  }
+
+  // One interval of full-scale sound, and one of a single-sample spike.
+  void playsClipped(const std::string &who, int numSamples = 48000) {
+    std::vector<float> block((std::size_t)numSamples, 1.0f);
+    sends(who, block);
+  }
+
+  void playsClicks(const std::string &who, int numSamples = 48000) {
+    std::vector<float> block((std::size_t)numSamples, 0.0f);
+    block[(std::size_t)(numSamples / 2)] = 1.0f;
     sends(who, block);
   }
 
@@ -75,7 +88,19 @@ public:
   std::vector<BotClient::Member> members() const override { return {}; }
   std::vector<BotClient::Peer> peers() const override { return {}; }
   void setRecv(const std::string &, int, bool) override {}
-  void sendChat(const std::string &text) override { said.push_back(text); }
+  // Guarded because one test drives the tutor from several threads at once,
+  // which is the only way to reach the check-and-act the thread is built to
+  // survive. An unguarded vector would race in the FAKE and report the bug it
+  // was meant to be testing for.
+  void sendChat(const std::string &text) override {
+    std::lock_guard<std::mutex> sl(saidMutex);
+    said.push_back(text);
+  }
+
+  std::vector<std::string> saidCopy() const {
+    std::lock_guard<std::mutex> sl(saidMutex);
+    return said;
+  }
   void sendPrivate(const std::string &, const std::string &) override {}
   std::unique_ptr<BotClient::Timer>
   createTimer(std::function<void()>) override {
@@ -84,6 +109,7 @@ public:
   void transmit(const float *, const float *, int) override {}
 
 private:
+  mutable std::mutex saidMutex;
   std::vector<BotClient::Listener *> listeners;
 };
 
@@ -265,6 +291,58 @@ public:
       expect(rig.tutor->step() == TutorBot::Step::Done);
       expectEquals((int)rig.client->said.size(), 7,
                    "the six lines plus one remark did not both arrive");
+    }
+
+    beginTest("a hundred events produce at most ten lines");
+    {
+      // The test that keeps the tutor from becoming annoying.
+      //
+      // Section 7 argues the tutor may speak more than a player because it is
+      // FINITE BY CONSTRUCTION, and this is what holds the construction to it:
+      // five lessons, a sign-off, and four diagnostics that fire once each.
+      // Ten is the ceiling however long the session runs and whatever happens
+      // in it, so a hundred events of every kind must not find an eleventh.
+      Rig rig;
+      for (int i = 0; i < 100; ++i) {
+        switch (i % 10) {
+        case 0:
+          rig.client->plays("you");
+          break;
+        case 1:
+          rig.client->playsNothing("you");
+          break;
+        case 2:
+          rig.client->playsQuietly("you");
+          break;
+        case 3:
+          rig.client->playsClipped("you");
+          break;
+        case 4:
+          rig.client->playsClicks("you");
+          break;
+        case 5:
+          rig.client->plays("dave");
+          break;
+        case 6:
+          rig.client->say("you", "[key: D minor]");
+          break;
+        case 7:
+          rig.client->say("you", "shake");
+          break;
+        case 8:
+          rig.client->say("dave", "anyone about?");
+          break;
+        default:
+          rig.client->say("Delvo[bass-bot]", "shake");
+          break;
+        }
+      }
+
+      expect((int)rig.client->said.size() <= 10,
+             "the tutor said more than its whole vocabulary");
+      expect(rig.tutor->step() == TutorBot::Step::Done,
+             "a hundred events did not finish a six-line thread");
+      expect(!rig.tutor->isActive(), "the tutor never left");
     }
 
     beginTest("an empty interval is not a played one");

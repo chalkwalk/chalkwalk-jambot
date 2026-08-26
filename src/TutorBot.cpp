@@ -150,24 +150,41 @@ TutorBot::Step TutorBot::step() const {
   return current;
 }
 
-void TutorBot::advance(const std::string &line) {
-  Step next;
+void TutorBot::advance(Step from) {
+  const char *line = nullptr;
+  Step next = Step::Done;
   {
     std::lock_guard<std::mutex> sl(stateMutex);
+
+    // The step is re-checked under the lock, and the line is derived from it
+    // rather than passed in. Every caller tests `step()` and then acts, which
+    // releases the lock in between -- so two triggers arriving together could
+    // both see the same step, and a caller-supplied line would then be said
+    // twice while the thread moved on two places. Deriving it here makes the
+    // line and the step incapable of disagreeing, and makes a second call for
+    // a step already taken do nothing.
+    if (current != from)
+      return;
+
     switch (current) {
     case Step::Greeting:
+      line = kGreeting;
       next = Step::FirstPlayed;
       break;
     case Step::FirstPlayed:
+      line = kFirstPlayed;
       next = Step::SecondPlayed;
       break;
     case Step::SecondPlayed:
+      line = kSecondPlayed;
       next = Step::KeySet;
       break;
     case Step::KeySet:
+      line = kKeySet;
       next = Step::Shaken;
       break;
     case Step::Shaken:
+      line = kShaken;
       next = Step::Done;
       break;
     case Step::Done:
@@ -176,7 +193,7 @@ void TutorBot::advance(const std::string &line) {
     current = next;
   }
 
-  if (client)
+  if (client && line != nullptr)
     client->sendChat(line);
 
   // The last line and the leaving are one act. A tutor that said it would get
@@ -190,7 +207,7 @@ void TutorBot::advance(const std::string &line) {
 
 void TutorBot::onConnected() {
   if (step() == Step::Greeting)
-    advance(kGreeting);
+    advance(Step::Greeting);
 }
 
 void TutorBot::onDisconnected(const std::string &) { active = false; }
@@ -209,12 +226,12 @@ void TutorBot::onChatMessage(const std::string &type, const std::string &sender,
 
   if (at == Step::KeySet &&
       !chalkwalk::ninjam::conventions::extractKeyAnnouncement(text).empty()) {
-    advance(kKeySet);
+    advance(Step::KeySet);
     return;
   }
 
   if (at == Step::Shaken && isShake(text))
-    advance(kShaken);
+    advance(Step::Shaken);
 }
 
 void TutorBot::noteDiagnostic(InputCheck::Reading reading) {
@@ -281,7 +298,7 @@ void TutorBot::onIntervalReceived(const std::string &from, int,
     return;
 
   if (at == Step::FirstPlayed)
-    advance(kFirstPlayed);
+    advance(Step::FirstPlayed);
   else
-    advance(kSecondPlayed);
+    advance(Step::SecondPlayed);
 }
