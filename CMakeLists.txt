@@ -33,7 +33,8 @@ add_library(chalkwalk_jambot STATIC
     src/BotChat.cpp
     src/BotLanguage.cpp
     src/BotNames.cpp
-    src/PracticeBot.cpp)
+    src/PracticeBot.cpp
+    src/TutorBot.cpp)
 add_library(chalkwalk::jambot ALIAS chalkwalk_jambot)
 
 # The headers are in src/ beside their sources rather than under

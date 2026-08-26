@@ -59,7 +59,10 @@ public:
 
   // The server's tempo and interval length. Not a request -- it has already
   // happened, and every client in the room got the same message.
-  virtual void onServerConfig(int bpm, int bpi) { (void)bpm; (void)bpi; }
+  virtual void onServerConfig(int bpm, int bpi) {
+    (void)bpm;
+    (void)bpi;
+  }
 
   // Somebody's channels changed. Coarse on purpose: it says look again.
   virtual void onUserInfoChange() {}
@@ -67,7 +70,8 @@ public:
   // A JOIN or a PART. Distinct from `onUserInfoChange` because an event does
   // not go stale -- a player who joins and leaves between two scans of the
   // member list was, as far as any scan can tell, never there.
-  virtual void onRoomMembershipChange(const std::string &username, bool joined) {
+  virtual void onRoomMembershipChange(const std::string &username,
+                                      bool joined) {
     (void)username;
     (void)joined;
   }
@@ -75,6 +79,33 @@ public:
   // `type` is the server's: "MSG" for the room, "PRIVMSG" for one person,
   // "TOPIC" and so on. Passed through rather than parsed, because what counts
   // as addressed to you is the bot's question and not the transport's.
+  // A whole interval of somebody else's audio, decoded, at the local sample
+  // rate. Called once per interval per remote channel, when the last chunk of
+  // it has arrived -- delivery is all-or-nothing, so there is no partial form
+  // of this callback and there must not be one.
+  //
+  // THE MISSING HALF OF THIS INTERFACE. A bot could send audio and never
+  // receive any, which is a strange shape for a library whose stated future is
+  // a partner that reacts to what you play (`docs/BOT-CHAT.md` section 14).
+  // The tutor is the first caller rather than the reason.
+  //
+  // `right` is null when the channel is mono. The samples belong to the caller
+  // and are valid only for the duration of the call: a listener that wants
+  // them afterwards copies them. Called on whatever thread the client's
+  // network reading runs on, which is not the thread chat arrives on.
+  //
+  // Nothing is measured here on purpose. What a reading MEANS is the bot's
+  // business, and what a bot may conclude from it is bounded in section 7.
+  virtual void onIntervalReceived(const std::string &username, int channelIndex,
+                                  const float *left, const float *right,
+                                  int numSamples) {
+    (void)username;
+    (void)channelIndex;
+    (void)left;
+    (void)right;
+    (void)numSamples;
+  }
+
   virtual void onChatMessage(const std::string &type,
                              const std::string &username,
                              const std::string &text) {

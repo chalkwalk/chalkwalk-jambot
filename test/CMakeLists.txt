@@ -19,7 +19,8 @@ add_executable(chalkwalk_jambot_tests
     BotLanguageTests.cpp
     BotNamesTests.cpp
     ConductorTests.cpp
-    PracticeBotTests.cpp)
+    PracticeBotTests.cpp
+    TutorBotTests.cpp)
 
 target_link_libraries(chalkwalk_jambot_tests
     PRIVATE chalkwalk::jambot chalkwalk::dsp::measure Catch2::Catch2WithMain)
