@@ -128,6 +128,22 @@ bool PracticeBot::join(const std::string &host, int port, double sampleRate) {
   netClient->setChannels(names);
   netClient->connect(host, port, botName, "");
 
+  // A new connection has told the server nothing, whatever this bot published
+  // before it had one. Forgetting that is what makes the publish below
+  // unconditional -- without it, a bot given its voice BEFORE joining (which
+  // is the order the practice room uses) recorded the name during `playAs`,
+  // had it overwritten by the `setChannels` above, and then declined to send
+  // it again because it believed the room already knew. The room saw the
+  // placeholder for the whole session.
+  //
+  // Not reachable from the bot's own tests: it takes a fake that models the
+  // ORDER of connect against setChannels, and the one here does not. The room
+  // test found it, over a socket, which is the half that exists for this.
+  {
+    std::lock_guard<std::mutex> sl(stateMutex);
+    publishedChannel.clear();
+  }
+
   // After connecting, so the first CLIENT_SET_CHANNEL_INFO the room sees
   // already carries the role. `setChannels` above is what reserves the
   // channel; this is what names it.
