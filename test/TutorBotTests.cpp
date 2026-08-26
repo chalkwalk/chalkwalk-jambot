@@ -28,12 +28,29 @@ public:
       l->onChatMessage("MSG", who, what);
   }
 
-  // One interval of somebody's audio. The content does not matter yet -- the
-  // tutor ignores the samples -- but the shape of the call does.
-  void plays(const std::string &who, int numSamples = 4800) {
+  // One interval of somebody's audio, at a level that reads as playing.
+  void plays(const std::string &who, int numSamples = 48000) {
     std::vector<float> block((std::size_t)numSamples, 0.1f);
+    sends(who, block);
+  }
+
+  // One interval that arrives and is audible, but only just.
+  void playsQuietly(const std::string &who, int numSamples = 48000) {
+    std::vector<float> block((std::size_t)numSamples, 0.003f);
+    sends(who, block);
+  }
+
+  // One interval with nothing in it. Not the same as no interval at all: the
+  // audio path is working and carrying silence, which is the case the tutor's
+  // first diagnostic row is about.
+  void playsNothing(const std::string &who, int numSamples = 48000) {
+    std::vector<float> block((std::size_t)numSamples, 0.0f);
+    sends(who, block);
+  }
+
+  void sends(const std::string &who, std::vector<float> &block) {
     for (auto *l : listeners)
-      l->onIntervalReceived(who, 0, block.data(), nullptr, numSamples);
+      l->onIntervalReceived(who, 0, block.data(), nullptr, (int)block.size());
   }
 
   void addListener(BotClient::Listener *l) override { listeners.push_back(l); }
@@ -160,6 +177,94 @@ public:
       rig.client->say("Tutor", "[key: D minor]");
       expectEquals((int)rig.client->said.size(), before,
                    "the tutor answered its own line");
+    }
+
+    beginTest("silence does not advance the thread, and says so once");
+    {
+      // Nothing arrived, so "that interval just went out" would be false. The
+      // step has not happened and the tutor waits.
+      Rig rig;
+      rig.client->playsNothing("you");
+      expect(rig.tutor->step() == TutorBot::Step::FirstPlayed,
+             "an interval of silence was treated as playing");
+      expectEquals((int)rig.client->said.size(), 1,
+                   "one quiet interval was remarked on; that is a person "
+                   "thinking, not a fault");
+
+      rig.client->playsNothing("you");
+      expectEquals((int)rig.client->said.size(), 1);
+
+      // Three agreeing intervals is the point at which it is worth saying.
+      rig.client->playsNothing("you");
+      expectEquals((int)rig.client->said.size(), 2);
+      expect(rig.client->said.back().find("input armed") != std::string::npos,
+             "the wrong diagnostic was given for silence");
+
+      // At most once, ever, however long it goes on.
+      rig.client->playsNothing("you");
+      rig.client->playsNothing("you");
+      expectEquals((int)rig.client->said.size(), 2,
+                   "the tutor nagged about the same reading twice");
+
+      // And it still lets the thread through the moment audio arrives.
+      rig.client->plays("you");
+      expect(rig.tutor->step() == TutorBot::Step::SecondPlayed);
+    }
+
+    beginTest("a run has to be consecutive to count");
+    {
+      // Two silent intervals with a played one between them is somebody
+      // pausing, not a broken input.
+      Rig rig;
+      rig.client->playsNothing("you");
+      rig.client->playsNothing("you");
+      rig.client->plays("you");
+      rig.client->playsNothing("you");
+      rig.client->playsNothing("you");
+
+      for (const auto &line : rig.client->said)
+        expect(line.find("input armed") == std::string::npos,
+               "a broken run of silence was reported as a broken input");
+    }
+
+    beginTest("quiet audio went out, so it carries the thread AND is mentioned");
+    {
+      // The distinction the whole gating turns on: this reached the room, so
+      // the lesson about the interval delay is true of it and the step has
+      // happened. It still earns a line of its own once the reading holds.
+      Rig rig;
+      rig.client->playsQuietly("you");
+      expect(rig.tutor->step() == TutorBot::Step::SecondPlayed,
+             "audible-but-quiet audio was treated as nothing arriving");
+
+      rig.client->playsQuietly("you");
+      expect(rig.tutor->step() == TutorBot::Step::KeySet);
+
+      // Three agreeing intervals, which is more than the thread needs -- so
+      // this row can only ever fire if the check outlives step 2. It is the
+      // reason it does.
+      rig.client->playsQuietly("you");
+      bool mentioned = false;
+      for (const auto &line : rig.client->said)
+        if (line.find("struggle to hear") != std::string::npos)
+          mentioned = true;
+      expect(mentioned, "a consistently quiet input was never mentioned");
+    }
+
+    beginTest("a diagnostic never displaces the lesson");
+    {
+      // The thread is what the tutor is for. A quiet player gets the same five
+      // lines in the same order as anybody else, and the remark about level is
+      // an addition to them rather than a substitution for one.
+      Rig rig;
+      for (int i = 0; i < 3; ++i)
+        rig.client->playsQuietly("you");
+      rig.client->say("you", "[key: D minor]");
+      rig.client->say("you", "shake");
+
+      expect(rig.tutor->step() == TutorBot::Step::Done);
+      expectEquals((int)rig.client->said.size(), 7,
+                   "the six lines plus one remark did not both arrive");
     }
 
     beginTest("an empty interval is not a played one");

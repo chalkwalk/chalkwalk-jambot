@@ -2,6 +2,8 @@
 
 #include "BotNames.h"
 
+#include <cstddef>
+
 #include <chalkwalk/music/Text.h>
 #include <chalkwalk/ninjam/RoomConventions.h>
 
@@ -35,6 +37,53 @@ constexpr const char *kShaken =
     "the parts changed and the tune did not. shake rerolls what everyone "
     "plays, never what you agreed to play.";
 
+// The four diagnostic lines, one per row of section 7's table.
+//
+// Every one of them is actionable and none is an opinion about music. That is
+// the rule the table exists to enforce: the reading gates which ENCOURAGING
+// line is said, and never produces a criticism. "i am getting clicks" names a
+// buffer size; it does not say the playing was bad, and there is no reading
+// that could make it say so.
+constexpr const char *kNothingArrived =
+    "i am not seeing anything from you yet -- is the right input armed?";
+
+constexpr const char *kQuiet =
+    "that went out, though it is quiet -- others may struggle to hear it.";
+
+constexpr const char *kClicks =
+    "i am getting clicks rather than playing -- that is usually a buffer size.";
+
+constexpr const char *kClipping =
+    "that is clipping, and it will distort for everyone else.";
+
+const char *lineFor(InputCheck::Reading r) {
+  switch (r) {
+  case InputCheck::Reading::Silent:
+    return kNothingArrived;
+  case InputCheck::Reading::Faint:
+    return kQuiet;
+  case InputCheck::Reading::Clicks:
+    return kClicks;
+  case InputCheck::Reading::Clipping:
+    return kClipping;
+  case InputCheck::Reading::Playing:
+    break;
+  }
+  return nullptr;
+}
+
+// Whether what arrived was something the room could hear.
+//
+// This is what decides the THREAD, and it is a different question from whether
+// there was anything to remark on. Silence and clicks did not reach anybody, so
+// "that interval just went out" would be false and the step has not happened
+// yet. Quiet and clipping both went out -- the lesson about the interval delay
+// is true of them -- so they carry the thread even though each also earns a
+// line of its own.
+bool wentOut(InputCheck::Reading r) {
+  return r != InputCheck::Reading::Silent && r != InputCheck::Reading::Clicks;
+}
+
 constexpr const char *kSignOff =
     "that is the whole of it -- i'll get out of the way. the band will keep "
     "playing.";
@@ -66,11 +115,11 @@ void TutorBot::setOwner(std::string ownerUsername) {
   owner = std::move(ownerUsername);
 }
 
-bool TutorBot::join(const std::string &host, int port, double sampleRate) {
+bool TutorBot::join(const std::string &host, int port, double rate) {
   if (!client)
     return false;
 
-  client->setSampleRate(sampleRate);
+  client->setSampleRate(rate);
 
   // No channel at all. The tutor sends nothing and is not a strip in anybody's
   // mixer; it is a name in the room that talks.
@@ -81,6 +130,10 @@ bool TutorBot::join(const std::string &host, int port, double sampleRate) {
   client->setDefaultRecvEnabled(true);
 
   client->connect(host, port, username, "");
+  {
+    std::lock_guard<std::mutex> sl(stateMutex);
+    sampleRate = rate;
+  }
   active = true;
   return true;
 }
@@ -164,26 +217,71 @@ void TutorBot::onChatMessage(const std::string &type, const std::string &sender,
     advance(kShaken);
 }
 
-void TutorBot::onIntervalReceived(const std::string &from, int, const float *,
-                                  const float *, int numSamples) {
+void TutorBot::noteDiagnostic(InputCheck::Reading reading) {
+  const char *line = nullptr;
+  {
+    std::lock_guard<std::mutex> sl(stateMutex);
+
+    if (reading == lastReading) {
+      ++agreeingIntervals;
+    } else {
+      lastReading = reading;
+      agreeingIntervals = 1;
+    }
+
+    const auto row = (std::size_t)reading;
+    if (reading == InputCheck::Reading::Playing ||
+        agreeingIntervals < kIntervalsToAgree || saidDiagnostic[row])
+      return;
+
+    saidDiagnostic[row] = true;
+    line = lineFor(reading);
+  }
+
+  if (line != nullptr && client)
+    client->sendChat(line);
+}
+
+void TutorBot::onIntervalReceived(const std::string &from, int,
+                                  const float *left, const float *right,
+                                  int numSamples) {
   if (!active.load() || numSamples <= 0)
     return;
 
+  double rate = 0.0;
   {
     std::lock_guard<std::mutex> sl(stateMutex);
     if (!owner.empty() && from != owner)
       return; // Somebody else playing must not carry the newcomer forward.
+    rate = sampleRate;
   }
 
-  // NOTHING IS MEASURED HERE YET. The samples are deliberately ignored: this
-  // step is meant to check that what arrived looks like an instrument somebody
-  // could hear, and the diagnostic table for that is section 7's and is not
-  // built. Until it is, the tutor says the encouraging line -- which is what
-  // that section requires it to do whenever the reading is unclear anyway, so
-  // the neutral path is the one it will keep.
+  const auto reading = InputCheck::read(left, right, numSamples, rate);
+
+  // Checked for as long as the tutor is here, and not only during the two
+  // steps that are gated on hearing you.
+  //
+  // Section 7 says that after step 2 the tutor never listens for anything
+  // ELSE, which is a rule about scope rather than about when to stop: these
+  // four rows are the only thing it ever listens for, and it goes on watching
+  // for them until it parts. The strict reading would make two of them dead
+  // code -- quiet and clipping both let the thread through, so it is past step
+  // 2 within two intervals and a row needing three in a row could never fire.
+  // The cost of the wider reading is bounded by construction: four lines, once
+  // each, and then the tutor leaves.
+  noteDiagnostic(reading);
+
+  // Whether the THREAD moves is the separate question, and it belongs to the
+  // two steps that are about hearing you.
   const Step at = step();
+  if (at != Step::FirstPlayed && at != Step::SecondPlayed)
+    return;
+
+  if (!wentOut(reading))
+    return;
+
   if (at == Step::FirstPlayed)
     advance(kFirstPlayed);
-  else if (at == Step::SecondPlayed)
+  else
     advance(kSecondPlayed);
 }

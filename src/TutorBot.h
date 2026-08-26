@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BotClient.h"
+#include "InputCheck.h"
 
 #include <atomic>
 #include <memory>
@@ -54,7 +55,7 @@ public:
   // the lines about their own first interval.
   void setOwner(std::string ownerUsername);
 
-  bool join(const std::string &host, int port, double sampleRate);
+  bool join(const std::string &host, int port, double rate);
 
   // Leaves. Idempotent, and called by the thread itself when it finishes.
   void part();
@@ -66,6 +67,13 @@ public:
   // for your first interval and waiting for your second is several seconds of
   // audio that nothing can watch.
   Step step() const;
+
+  // How many consecutive intervals must agree before a diagnostic is said.
+  //
+  // Section 7: a single quiet interval is a person thinking. Nothing about the
+  // first four rows is urgent enough to be worth saying to somebody who paused
+  // to turn a page.
+  static constexpr int kIntervalsToAgree = 3;
 
 private:
   void onConnected() override;
@@ -80,12 +88,29 @@ private:
   // itself; callers must not hold it.
   void advance(const std::string &line);
 
+  // Counts the run of agreeing readings and says the row's line if this is the
+  // interval that completes it. Returns nothing: whether the thread moves on is
+  // a separate question, answered by the reading itself.
+  void noteDiagnostic(InputCheck::Reading reading);
+
   std::string username;
   std::unique_ptr<BotClient::Client> client;
 
   mutable std::mutex stateMutex;
   std::string owner;
   Step current = Step::Greeting;
+
+  // What the last interval read as, and how many in a row have agreed.
+  InputCheck::Reading lastReading = InputCheck::Reading::Playing;
+  int agreeingIntervals = 0;
+
+  // Each of the first four rows fires at most once, ever. Indexed by the
+  // enumerator, which is why `Playing` has a slot it never uses -- a lookup
+  // that cannot be off by one is worth one unused bool.
+  bool saidDiagnostic[5] = {false, false, false, false, false};
+
+  // Needed to measure a duty cycle, and known only from `join`.
+  double sampleRate = 0.0;
 
   std::atomic<bool> active{false};
 };

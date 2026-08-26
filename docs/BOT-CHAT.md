@@ -1075,6 +1075,39 @@ thresholds:
 This is deliberately not musical analysis. It does not know what you played, and
 after step 2 it never listens for anything else.
 
+#### What was built, and where it departs from the table above
+
+`InputCheck` is the whole of it: samples in, one of five readings out.
+
+**The last row is not tested for.** `Playing` is the fallback, because the
+uncertainty rule already requires that anything unclear is treated as somebody
+playing -- so computing a fundamental or looking for transients on a grid would
+arrive at the answer the fallback gives anyway. That also retires the transient
+count this section asks for: it appears only in the row that is never
+evaluated.
+
+**A click is judged in seconds, not as a duty cycle.** The table says "tiny duty
+cycle", and that was built first and was wrong: measured as a fraction of an
+interval, ONE short percussive note -- which this section names by hand as a
+part that must never be called silence -- is indistinguishable from a buffer
+underrun. A fraction also makes the same click catchable at bpi 8 and missable
+at bpi 32. What actually separates them is absolute brevity: a click is shorter
+than any envelope an instrument can produce. The threshold is 5 ms of sound in
+the whole interval, and a 5 ms strike sounds for roughly 23 ms.
+
+**The check outlives step 2.** Read strictly, "after step 2 it never listens for
+anything else" makes two of the four rows unreachable: quiet and clipping both
+let the thread through, so it is past step 2 within two intervals and a row
+needing three in a row could never fire. It is read here as a rule about scope
+-- these four rows are the only thing ever listened for -- and the check runs
+until the tutor parts. The bound that matters is unchanged: four lines, once
+each, and then it leaves.
+
+**A diagnostic never replaces a lesson.** Where the audio reached the room --
+quiet and clipping -- the step's own line is said at once and the remark is an
+addition to it. Where it did not -- silence and clicks -- "that interval just
+went out" would be false, so the thread waits instead.
+
 ---
 
 ## 8. Personality without cuteness
