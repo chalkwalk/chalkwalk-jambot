@@ -5,6 +5,7 @@
 #include <map>
 #include "JuceUnitShim.h"
 
+#include <chalkwalk/dsp/Loudness.h>
 #include <chalkwalk/dsp/Measure.h>
 
 // The instruments live in chalkwalk-dsp, and this is the name the
