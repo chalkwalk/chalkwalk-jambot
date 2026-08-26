@@ -8,6 +8,7 @@
 #include <chalkwalk/music/Melody.h>
 #include <chalkwalk/music/NoteStrength.h>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 // What each bot plays, for one interval.
@@ -36,6 +37,21 @@ inline constexpr int kNumVoices = 4;
 enum class Contour { Rise, Fall, Arch, Walk };
 
 const char *voiceName(Voice v);
+
+// What the part IS, as a room would say it: "rhythm", "bass", "chords",
+// "lead".
+//
+// Not the same word as `voiceName`, which names the synthesis. A voice is how
+// a part is made and a role is what it does, and they only look
+// interchangeable because there are currently four of each. Section 16 of
+// docs/BOT-CHAT.md separates them properly -- several players share one role
+// there, and a role is a stratum plus a register plus how it relates to the
+// stratum's figure. This is that vocabulary's first word, and the mapping is
+// one-to-one only until it is not.
+//
+// It is the first half of a channel name, and what a player addresses.
+const char *roleName(Voice v);
+
 
 struct Settings {
   int bpm = 120;
@@ -141,6 +157,22 @@ chalkwalk::music::SoundingChord toSoundingChord(const Harmony::Chord &chord);
 
 // How the bass player plays, chosen once from the seed and then held for the
 // whole session.
+// What the part is played ON, this session: "kit", "fingered", "strings",
+// "guitar".
+//
+// Taken from the settings rather than the voice, because it is a choice the
+// seed made and a player can override -- the one half of a channel name that
+// moves without anybody leaving the room.
+std::string instrumentName(Voice v, const Settings &s);
+
+// The two together, `role: instrument`, which is what goes in
+// CLIENT_SET_CHANNEL_INFO (docs/BOT-CHAT.md section 16.7).
+//
+// Role first because it is what says what the part is and what you would
+// address; the instrument qualifies it. It also groups sensibly when a client
+// sorts channels, so players sharing a role sit together.
+std::string channelName(Voice v, const Settings &s);
+
 BotVoice::BassTechnique bassTechnique(const Settings &s);
 
 // The patch each voice is actually rendered with: the seed's, or the override

@@ -48,7 +48,13 @@ public:
                     listeners.end());
   }
   void setSampleRate(double) override {}
-  void setChannels(const std::vector<std::string> &) override {}
+  // Every channel name the bot has published, in order. The bot renames its
+  // own strip now, so what it sends and WHEN is behaviour rather than setup.
+  std::vector<std::string> channelNames;
+  void setChannels(const std::vector<std::string> &names) override {
+    if (!names.empty())
+      channelNames.push_back(names.front());
+  }
   void setDefaultRecvEnabled(bool) override {}
   void connect(const std::string &, int, const std::string &name,
                const std::string &) override {
@@ -142,6 +148,52 @@ public:
   PracticeBotTests() : shim::UnitTest("PracticeBot", "bots") {}
 
   void runTest() override {
+    beginTest("a bot names its own channel `role: instrument`");
+    {
+      Rig rig;
+      expect(!rig.fake->channelNames.empty(), "no channel was ever published");
+
+      const auto &latest = rig.fake->channelNames.back();
+      expect(latest.rfind("chords: ", 0) == 0,
+             "the keyboard's channel does not lead with its ROLE -- got '" +
+                 latest + "'");
+      expect(latest.size() > std::string("chords: ").size(),
+             "the role was published with no instrument after it");
+
+      // The role is not the voice's own name. `voiceName` says how the part is
+      // MADE and the role says what it does; they are separable, and section
+      // 16 separates them.
+      expect(latest.find("Keys") == std::string::npos,
+             "the channel name leaked the synthesis name");
+    }
+
+    beginTest("a shake renames the strip, and only when it changed");
+    {
+      // The seed chose the instrument, so rerolling the seed can change it --
+      // and every client's mixer has to be told, because the strip is how
+      // anybody knows what they are listening to.
+      Rig rig;
+      const auto before = rig.fake->channelNames.size();
+
+      // Enough shakes that the instrument is overwhelmingly likely to move at
+      // least once; asserting a specific reroll would be asserting the hash.
+      // Addressed by name, which is the form proven in BotChatTests. A BARE
+      // "shake" did not reshuffle this bot, with or without bandmates set --
+      // see the note in ROADMAP.md; it is a question about addressing rather
+      // than about naming, and it is not this test's to answer.
+      for (int i = 0; i < 40; ++i)
+        rig.fake->say("you", "Ravo: shake");
+
+      expect(rig.fake->channelNames.size() > before,
+             "forty shakes never renamed the channel");
+
+      // No entry repeats the one before it: a re-send that says nothing is a
+      // broadcast to the whole room for no reason.
+      for (std::size_t i = 1; i < rig.fake->channelNames.size(); ++i)
+        expect(rig.fake->channelNames[i] != rig.fake->channelNames[i - 1],
+               "the same channel name was published twice in a row");
+    }
+
     beginTest("a bot answers what it is asked, with no room around it");
     {
       Rig rig;

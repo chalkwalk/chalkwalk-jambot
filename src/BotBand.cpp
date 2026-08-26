@@ -88,6 +88,48 @@ const char *voiceName(Voice v) {
   return "Bot";
 }
 
+const char *roleName(Voice v) {
+  switch (v) {
+  case Voice::Drums:
+    return "rhythm";
+  case Voice::Bass:
+    return "bass";
+  case Voice::Keys:
+    return "chords";
+  case Voice::Lead:
+    return "lead";
+  }
+  return "part";
+}
+
+std::string instrumentName(Voice v, const Settings &s) {
+  switch (v) {
+  case Voice::Drums:
+    // One word, because the kit is one instrument played by one player even
+    // though it is several drums. Naming the pieces would name the notes.
+    return "kit";
+  case Voice::Bass:
+    return BotVoice::bassTechniqueName(bassTechnique(s));
+  case Voice::Keys:
+    return BotVoice::padCharacterName(keysPatch(s).character);
+  case Voice::Lead:
+    switch (leadInstrument(s)) {
+    case BotVoice::LeadInstrument::EPiano:
+      return "epiano";
+    case BotVoice::LeadInstrument::Guitar:
+      return "guitar";
+    case BotVoice::LeadInstrument::Synth:
+      break;
+    }
+    return "synth";
+  }
+  return "bot";
+}
+
+std::string channelName(Voice v, const Settings &s) {
+  return std::string(roleName(v)) + ": " + instrumentName(v, s);
+}
+
 int metricStrength(int step, int bpi) {
   if (bpi <= 0)
     return 0;

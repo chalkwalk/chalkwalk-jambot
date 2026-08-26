@@ -254,7 +254,19 @@ private:
   int speakDelayMs() const { return speakDelayMs(botName, botsPresent()); }
 
   std::string botName;
+  // What was passed in at construction. A bot in a band overrides this from
+  // its role and instrument the moment `playAs` gives it one; a bot with no
+  // voice -- the echo bot, a test's bare bot -- keeps it.
   std::vector<std::string> channels;
+
+  // The channel name last sent to the server, so a re-send happens when it
+  // changes and not on every interval. Empty until the first `publishChannel`.
+  std::string publishedChannel;
+
+  // Composes `role: instrument` from the current voice and settings, and sends
+  // it if it differs from what the room was last told. Cheap enough to call
+  // whenever the settings might have moved.
+  void publishChannel();
   std::string owner;
   std::string listensTo;
   Render render;

@@ -2054,6 +2054,18 @@ channels, so the chord players sit together.
 This removes the rejoin problem completely, and it is addressable: every client
 already receives channel names, and Antiphon keeps them per remote channel.
 
+**Built.** `BotBand::roleName` and `instrumentName` compose it and `PracticeBot`
+publishes it: at join, when `playAs` gives it a voice, after a shake -- which
+rerolls the seed that chose the instrument -- and when somebody names an
+instrument for the lead. Guarded on having actually changed, because this is
+reachable from the interval path and a rename per interval is a broadcast to
+the whole room that says nothing.
+
+The role word is deliberately NOT the voice's own name: `voiceName` says how a
+part is made and `roleName` says what it does, so the keyboard's channel reads
+`chords: strings` rather than `keys: strings`. They are one-to-one only while
+there are four of each, which is the whole point of 16.1.
+
 **What it costs.** Addressing matches a static instrument vocabulary today.
 Resolving "bass" to a username means reading live channel names, so addressing
 comes to depend on state that arrives asynchronously -- a bot that has just

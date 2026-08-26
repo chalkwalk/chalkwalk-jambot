@@ -127,6 +127,11 @@ bool PracticeBot::join(const std::string &host, int port, double sampleRate) {
     names.push_back(c);
   netClient->setChannels(names);
   netClient->connect(host, port, botName, "");
+
+  // After connecting, so the first CLIENT_SET_CHANNEL_INFO the room sees
+  // already carries the role. `setChannels` above is what reserves the
+  // channel; this is what names it.
+  publishChannel();
   active = true;
   return true;
 }
@@ -139,6 +144,33 @@ void PracticeBot::part() {
   bandReplyTimer->stop();
   graceTimer->stop();
   netClient->disconnect();
+}
+
+// The channel name is the band's, not the room's.
+//
+// It used to be a fixed word handed in at construction, which was fine while a
+// bot's part could not change. Both halves move now: the instrument is the
+// seed's choice and a shake rerolls it, and the role will move once a band can
+// close ranks around somebody leaving. So the bot composes its own name and
+// re-sends it, which is what `CLIENT_SET_CHANNEL_INFO` is for -- the server
+// broadcasts it to the room as `USER_INFO_CHANGE` and every client's strip
+// renames itself (docs/BOT-CHAT.md section 16.7).
+//
+// Guarded on having actually changed, because this is called from the interval
+// path and a rename every interval would be a broadcast storm that says
+// nothing.
+void PracticeBot::publishChannel() {
+  std::string wanted;
+  {
+    std::lock_guard<std::mutex> sl(stateMutex);
+    if (!inBand)
+      return; // No voice, so no role: whatever it was constructed with stands.
+    wanted = BotBand::channelName(bandVoice, settings);
+    if (wanted == publishedChannel)
+      return;
+    publishedChannel = wanted;
+  }
+  netClient->setChannels({wanted});
 }
 
 void PracticeBot::playAs(BotBand::Voice voice, const MusicalKey::Key &key,
@@ -154,6 +186,11 @@ void PracticeBot::playAs(BotBand::Voice voice, const MusicalKey::Key &key,
   // becomes the first turn of the same stop/start loop you use between tunes
   // rather than a special case (docs/BOT-CHAT.md section 15).
   inBand = true;
+
+  // Named now that there is a role to name. Before a connection this only
+  // records the intent; `join` publishes it, and a later `playAs` -- a role
+  // change -- sends it for real.
+  publishChannel();
 
   setRender([this](float *left, float *right, int numSamples,
                    int intervalIndex, BotBand::Phase phase) {
@@ -827,6 +864,9 @@ void PracticeBot::onChatMessage(const std::string &rawType,
     return;
   case BotChat::Act::Reshuffle:
     shake();
+    // A shake rerolls the seed, and the seed is what chose the instrument. The
+    // strip in everybody's mixer says so.
+    publishChannel();
     return;
   case BotChat::Act::SetArticulation: {
     std::lock_guard<std::mutex> sl(stateMutex);
@@ -834,8 +874,12 @@ void PracticeBot::onChatMessage(const std::string &rawType,
     return;
   }
   case BotChat::Act::SetLeadInstrument: {
-    std::lock_guard<std::mutex> sl(stateMutex);
-    settings.leadOverride = answer.value;
+    {
+      std::lock_guard<std::mutex> sl(stateMutex);
+      settings.leadOverride = answer.value;
+    }
+    // Asked for by name, so the name is the one thing that must keep up.
+    publishChannel();
     return;
   }
   case BotChat::Act::StartPlaying:
