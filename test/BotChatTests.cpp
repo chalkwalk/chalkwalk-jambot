@@ -366,6 +366,49 @@ public:
              "the reply does not say what it is on (" + bars + "): " + juce::String(r.text));
     }
 
+    beginTest("a command has to be addressed, and `band` is how");
+    {
+      // The question this settles: does a BARE command reach the bots?
+      //
+      // It does not, and that is the design rather than a gap. Nobody is
+      // addressed by default, because these bots are ordinary clients that can
+      // join anybody's server -- a room where four bots react to every line
+      // typed between two people is the thing section 1 refuses. What was
+      // wrong was the DOCUMENTATION, which listed `shake` bare beside `band,
+      // start`.
+      {
+        auto ctx = contextWith(BotBand::Voice::Keys, "Ravo", "tester");
+        BotAddress::Attention att;
+        const auto r = BotChat::respond(ctx, from("tester", "shake"), att);
+        expect(r.act == BotChat::Act::None,
+               "an unaddressed command reached a bot");
+        expect(!r.speak, "a bot answered a line that was not addressed to it");
+      }
+
+      // Addressed to the band, which is what the manual should say.
+      {
+        auto ctx = contextWith(BotBand::Voice::Keys, "Ravo", "tester");
+        BotAddress::Attention att;
+        const auto r = BotChat::respond(ctx, from("tester", "band, shake"), att);
+        expect(r.act == BotChat::Act::Reshuffle,
+               "`band, shake` did not reach the band");
+      }
+
+      // And the exception that makes the bare form defensible in conversation:
+      // having just been spoken to, a bot keeps listening to that person for a
+      // few turns. This is why a bare `shake` works when you have been talking
+      // to them and not when you have not, which is exactly the kind of
+      // inconsistency a manual must not promise its way around.
+      {
+        auto ctx = contextWith(BotBand::Voice::Keys, "Ravo", "tester");
+        BotAddress::Attention att;
+        BotChat::respond(ctx, from("tester", "Ravo"), att);
+        const auto r = BotChat::respond(ctx, from("tester", "shake"), att);
+        expect(r.act == BotChat::Act::Reshuffle,
+               "the attention window did not carry a follow-up command");
+      }
+    }
+
     beginTest("a command produces an action, not just a sentence");
     {
       // The half of Response that is not words. A command both acts and speaks,

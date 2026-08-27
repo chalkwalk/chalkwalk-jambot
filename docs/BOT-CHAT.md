@@ -160,6 +160,14 @@ exists to avoid, and it would happen on the very first "what are you playing".
 **The rule: exactly the bots that were addressed answer, and nobody is
 addressed by default.**
 
+**A manual that hosts these bots has to SAY that.** Antiphon's listed `shake`
+and `what are you playing?` bare, beside `band, start`, and both were simply
+wrong -- typed as printed they do nothing. What made it plausible enough to
+survive review is the attention window below: having spoken to a bot, a bare
+follow-up does work, so the bare form is right in a conversation and wrong out
+of the blue. That is a distinction a table cannot carry, so the rule goes in
+prose next to it.
+
 That is a correction to an earlier draft, which said "at most one bot ever
 answers". One was standing in for "not all four", but it is the wrong number:
 `delvo, mirn, can you turn it up` names two people and should get two
