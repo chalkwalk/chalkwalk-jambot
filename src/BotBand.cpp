@@ -62,7 +62,7 @@ Harmony::Layout layoutOf(const Settings &s) {
 // rolls its own rhythm fights the kick instead of locking to it, which is what
 // real bass playing mostly does not do.
 Figure kickFigure(const Settings &s) {
-  Rng rng(saltedSeed(Voice::Drums, s.seed));
+  Rng rng(figureSeed(Voice::Drums, s, Hold::Session, 0));
   Figure f;
   f.steps = std::max(1, s.bpi);
   // Sparse enough to leave room, dense enough to be a groove.
@@ -157,6 +157,27 @@ std::uint32_t saltedSeed(Voice voice, std::uint32_t seed) {
   return mix(seed ^ (0x9E3779B9U * (std::uint32_t)((int)voice + 1)));
 }
 
+// Reproduces exactly what each call site did before the hold existed, which is
+// the whole point of landing this first: the band plays identically, and the
+// vocabulary is in place to change what it holds.
+//
+// `Session` is `saltedSeed` with the caller's salt, as it was. `Interval` adds
+// the lead's 7919 stride, as it was. `Section` has no callers yet and folds to
+// `Session`, because with no form there is one section and it lasts the whole
+// session -- which is the true statement, not a placeholder.
+std::uint32_t figureSeed(Voice v, const Settings &s, Hold hold,
+                         int intervalIndex, std::uint32_t salt) {
+  const std::uint32_t base = saltedSeed(v, s.seed) + salt;
+  switch (hold) {
+  case Hold::Session:
+  case Hold::Section:
+    return base;
+  case Hold::Interval:
+    return base + 7919u * (std::uint32_t)intervalIndex;
+  }
+  return base;
+}
+
 Settings defaults(const MusicalKey::Key &key, int bpm, int bpi,
                   double sampleRate, std::uint32_t seed) {
   Settings s;
@@ -195,7 +216,7 @@ Figure figureFor(Voice voice, const Settings &s) {
     // The kick deliberately does NOT get this treatment. A short period is
     // what makes a kick a pulse you can rely on; movement is what a bass wants
     // and a kick does not.
-    Rng rng(saltedSeed(Voice::Bass, s.seed));
+    Rng rng(figureSeed(Voice::Bass, s, Hold::Session, 0));
     const Figure kick = kickFigure(s);
     Figure f;
     f.steps = kick.steps * 2;
@@ -219,7 +240,9 @@ Figure figureFor(Voice voice, const Settings &s) {
 
   case Voice::Lead: {
     // Eighths, and denser than anything else: a line has to move to be a line.
-    Rng rng(saltedSeed(Voice::Lead, s.seed));
+    //
+    // The lead's RHYTHM is held for the session; only its contour rerolls.
+    Rng rng(figureSeed(Voice::Lead, s, Hold::Session, 0));
     Figure f;
     f.steps = std::max(1, s.bpi * 2);
     f.pulses = std::min(f.steps, rng.range(s.bpi, s.bpi + s.bpi / 2));
@@ -353,7 +376,7 @@ std::vector<int> leadLineFrom(const Settings &s, int intervalIndex,
 
   const auto layout = layoutOf(s);
   const Figure f = figureFor(Voice::Lead, s);
-  Rng rng(saltedSeed(Voice::Lead, s.seed) + 7919u * (std::uint32_t)intervalIndex);
+  Rng rng(figureSeed(Voice::Lead, s, Hold::Interval, intervalIndex));
   const auto contour = (Contour)(rng.next() % 4);
 
   const int centre = 72;
@@ -546,7 +569,7 @@ struct KitPattern {
 KitPattern kitPattern(const Settings &s) {
   KitPattern p;
   p.kick = kickFigure(s);
-  Rng rng(saltedSeed(Voice::Drums, s.seed) ^ 0xB5297A4DU);
+  Rng rng(figureSeed(Voice::Drums, s, Hold::Session, 0) ^ 0xB5297A4DU);
 
   // The snare answers the kick rather than rolling its own: two onsets, half an
   // interval apart, which is the backbeat in every time signature this can be.

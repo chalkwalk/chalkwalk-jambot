@@ -173,6 +173,38 @@ std::string instrumentName(Voice v, const Settings &s);
 // sorts channels, so players sharing a role sit together.
 std::string channelName(Voice v, const Settings &s);
 
+// How long a random decision is HELD, which is the distinction the band did
+// not have and the one repetition needs (ROADMAP, *Form: repetition, tension
+// and release*).
+//
+// One seed plus the interval index decides everything today, which is exactly
+// why repetition and staleness cannot be separated: repeating a phrase means
+// reusing the seed, and reusing the seed reproduces the interval sample for
+// sample. Naming the hold is what lets a figure return while the performance
+// of it does not.
+enum class Hold {
+  // For the whole session. The kick figure, the bass figure, the kit pattern,
+  // the lead's rhythm -- everything that makes a band sound like itself.
+  Session,
+
+  // For the length of a section, so a phrase can come back. NOTHING USES THIS
+  // YET, and that is the gap rather than an oversight: there are no sections
+  // until there is a form.
+  Section,
+
+  // Fresh every interval. Today only the lead's note contour, which is the
+  // rule that says "never repeat" and the reason a long session meanders.
+  Interval,
+};
+
+// The seed for a decision about WHAT is played.
+//
+// `salt` separates two decisions of the same voice at the same hold -- the kit
+// pattern from the kick figure it is built around -- and is passed through
+// unchanged so that existing call sites keep their exact values.
+std::uint32_t figureSeed(Voice v, const Settings &s, Hold hold,
+                         int intervalIndex, std::uint32_t salt = 0);
+
 BotVoice::BassTechnique bassTechnique(const Settings &s);
 
 // The patch each voice is actually rendered with: the seed's, or the override

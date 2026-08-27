@@ -111,6 +111,60 @@ public:
   BotBandTests() : shim::UnitTest("BotBand", "music") {}
 
   void runTest() override {
+    beginTest("a figure's HOLD is what decides whether it can come back");
+    {
+      // The vocabulary repetition needs, pinned before anything uses it. One
+      // seed plus the interval index decides everything otherwise, which is
+      // why repetition and staleness cannot be separated: repeating a phrase
+      // means reusing the seed, and reusing the seed reproduces the interval
+      // sample for sample.
+      const auto s =
+          BotBand::defaults(MusicalKey::parseName("D minor"), 100, 16, 48000.0,
+                            20260811);
+
+      // Session: the same answer whatever interval asks. This is what makes a
+      // band sound like itself for a whole session.
+      for (int i : {0, 1, 7, 64})
+        expectEquals(
+            (int)BotBand::figureSeed(BotBand::Voice::Bass, s,
+                                     BotBand::Hold::Session, i),
+            (int)BotBand::figureSeed(BotBand::Voice::Bass, s,
+                                     BotBand::Hold::Session, 0),
+            "a session-held figure moved between intervals");
+
+      // Interval: a different answer every time, which is the rule that says
+      // never repeat.
+      expect(BotBand::figureSeed(BotBand::Voice::Lead, s,
+                                 BotBand::Hold::Interval, 0) !=
+                 BotBand::figureSeed(BotBand::Voice::Lead, s,
+                                     BotBand::Hold::Interval, 1),
+             "an interval-held figure repeated");
+
+      // Section folds to Session while there is no form, and that is the true
+      // statement rather than a placeholder: with no form there is one
+      // section and it lasts the whole session.
+      expectEquals((int)BotBand::figureSeed(BotBand::Voice::Keys, s,
+                                            BotBand::Hold::Section, 3),
+                   (int)BotBand::figureSeed(BotBand::Voice::Keys, s,
+                                            BotBand::Hold::Session, 3));
+
+      // Voices do not collide. Without the salt one seed gives every
+      // instrument the same figure -- the bass playing the kick note for note.
+      expect(BotBand::figureSeed(BotBand::Voice::Bass, s,
+                                 BotBand::Hold::Session, 0) !=
+                 BotBand::figureSeed(BotBand::Voice::Drums, s,
+                                     BotBand::Hold::Session, 0),
+             "two voices were handed the same figure seed");
+
+      // And the salt separates two decisions of ONE voice at one hold -- the
+      // kit pattern from the kick figure it is built around.
+      expect(BotBand::figureSeed(BotBand::Voice::Drums, s,
+                                 BotBand::Hold::Session, 0, 0xB5297A4DU) !=
+                 BotBand::figureSeed(BotBand::Voice::Drums, s,
+                                     BotBand::Hold::Session, 0),
+             "the salt did not separate two decisions of one voice");
+    }
+
     runSeedTests();
     runFigureTests();
     runEndingTests();
