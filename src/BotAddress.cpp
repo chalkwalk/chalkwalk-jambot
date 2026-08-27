@@ -183,6 +183,24 @@ bool inList(const InstrumentWord (&list)[N], const std::string &s) {
 
 } // namespace
 
+void splitChannelName(const std::string &channel, std::string &role,
+                      std::string &sound) {
+  role.clear();
+  sound.clear();
+  const auto colon = channel.find(':');
+  if (colon == std::string::npos)
+    return;
+  const auto strip = [](std::string t) {
+    const auto first = t.find_first_not_of(" \t");
+    if (first == std::string::npos)
+      return std::string();
+    const auto last = t.find_last_not_of(" \t");
+    return t.substr(first, last - first + 1);
+  };
+  role = lowered(strip(channel.substr(0, colon)));
+  sound = lowered(strip(channel.substr(colon + 1)));
+}
+
 std::vector<std::string> tokenise(const std::string &text) {
   std::vector<std::string> out;
   std::string current;
@@ -565,7 +583,23 @@ Address classify(const Room &room, const std::string &me, const Incoming &msg,
           instrument = candidate;
       }
 
-      if (instrument.empty())
+      // Not in the static vocabulary, so try the LIVE channel names. This is
+      // what makes `chords` and `strings` reach the keyboard when neither word
+      // is in the table above and neither is in its username.
+      //
+      // Only in a position a name could occupy. The static words earned the
+      // right to be recognised mid-sentence by being a closed, curated list;
+      // these are whatever a bot happens to be calling itself, so they get the
+      // narrower rule rather than the benefit of the doubt.
+      std::vector<const Participant *> liveHits;
+      if (instrument.empty() && positions[i]) {
+        for (const auto &p : room.participants)
+          if (p.isBot && !rawTokens[i].empty() &&
+              (p.role == rawTokens[i] || p.sound == rawTokens[i]))
+            liveHits.push_back(&p);
+      }
+
+      if (instrument.empty() && liveHits.empty())
         continue;
 
       // Where it counts. In the address position always; elsewhere only when
@@ -579,9 +613,13 @@ Address classify(const Room &room, const std::string &me, const Incoming &msg,
       if (!counts)
         continue;
 
-      for (const auto &p : room.participants)
-        if (p.isBot && p.instrument == instrument)
-          noteHit(p);
+      if (!instrument.empty()) {
+        for (const auto &p : room.participants)
+          if (p.isBot && p.instrument == instrument)
+            noteHit(p);
+      }
+      for (const auto *p : liveHits)
+        noteHit(*p);
       onlyMyName = false;
     }
   }

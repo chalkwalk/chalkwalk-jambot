@@ -2080,6 +2080,19 @@ comes to depend on state that arrives asynchronously -- a bot that has just
 changed role stays briefly addressable by the old one. That is a real change to
 `BotAddress` rather than a rename, and the brief ambiguity is accepted.
 
+**Built, and additively.** `Participant` carries `role` and `sound` off the
+live channel name ALONGSIDE the `instrument` it takes off the username, and a
+word reaches a bot if it matches any of them. The keyboard answers to `keys`,
+the word it joined under, and to `chords` and `strings`, which are what its
+strip says now. Keeping both is not indecision: the username does not change,
+so neither should what a player who learned it last week types.
+
+The live words get a narrower rule than the static ones -- they are matched
+only in a position a name could occupy, never mid-sentence. The static list
+earned the benefit of the doubt by being closed and curated; a channel name is
+whatever a bot happens to be calling itself, and "play something with more
+strings in it" is not an address.
+
 ### 16.8 The name pool has to grow first, and the reason is exact
 
 The pool holds eight names, and it deliberately contains conflicting pairs --

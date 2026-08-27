@@ -71,6 +71,67 @@ public:
   }
 
   void runUnitTests() {
+    beginTest("a bot is addressable by what its channel says NOW");
+    {
+      // Section 16.7: the role and the instrument both live in a channel name
+      // that moves, so addressing has to read it rather than the username.
+      // The keyboard joined as `Pundo[keys-bot]` and its strip now says
+      // `chords: strings`; all three words have to reach it.
+      BotAddress::Room room = fixtureRoom();
+      for (auto &p : room.participants)
+        if (p.username == "Pundo[keys-bot]") {
+          p.channel = "chords: strings";
+          BotAddress::splitChannelName(p.channel, p.role, p.sound);
+        }
+      room.resolveHandles();
+
+      const auto reaches = [&](const std::string &me, const char *said) {
+        BotAddress::Attention att;
+        BotAddress::Incoming in;
+        in.sender = "you";
+        in.text = said;
+        return BotAddress::classify(room, me, in, att) != BotAddress::Address::Ignore;
+      };
+
+      // The word it joined under still works: the username did not change, and
+      // neither should what a player who learned it last week types.
+      expect(reaches("Pundo[keys-bot]", "keys, play something else"),
+             "the keyboard stopped answering to `keys`");
+
+      // The role, which is new and is what the strip leads with.
+      expect(reaches("Pundo[keys-bot]", "chords, play something else"),
+             "the keyboard does not answer to its role");
+
+      // The instrument, which is the half a shake can change.
+      expect(reaches("Pundo[keys-bot]", "strings, play something else"),
+             "the keyboard does not answer to what it is playing");
+
+      // And none of it reaches anybody else. Addressing one player by a word
+      // that also names a part must not wake the band.
+      expect(!reaches("Delvo[bass-bot]", "chords, play something else"),
+             "the bass answered a message aimed at the chords");
+      expect(!reaches("Mirn[kit-bot]", "strings, play something else"),
+             "the kit answered a message aimed at the strings");
+    }
+
+    beginTest("a channel name that is not `role: instrument` is not a fault");
+    {
+      // Humans have channels too, and they are called whatever the player
+      // called them. Nothing here may treat that as malformed.
+      std::string role, sound;
+      BotAddress::splitChannelName("guitar", role, sound);
+      expect(role.empty() && sound.empty(), "a bare channel name was split");
+
+      BotAddress::splitChannelName("chords: strings", role, sound);
+      expectEquals(juce::String(role), juce::String("chords"));
+      expectEquals(juce::String(sound), juce::String("strings"));
+
+      // Whitespace and case are the room's, not ours.
+      BotAddress::splitChannelName("  Chords :  Strings  ", role, sound);
+      expectEquals(juce::String(role), juce::String("chords"));
+      expectEquals(juce::String(sound), juce::String("strings"));
+    }
+
     beginTest("leaving is the whole message, and part is never it");
     {
       // By far the commonest use of "part" in a jam is not the command.

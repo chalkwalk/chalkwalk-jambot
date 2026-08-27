@@ -736,6 +736,12 @@ BotAddress::Room PracticeBot::currentRoom() const {
     p.handle = BotNames::handleOf(p.username);
     p.channel = channel;
     p.isBot = BotNames::looksLikeBot(p.username);
+
+    // The live half. `role` and `sound` come off the channel name, which moves;
+    // `instrument` below comes off the username, which does not. Both are kept
+    // because a player should reach the keyboard by the word it joined under
+    // and by what its strip says now (docs/BOT-CHAT.md section 16.7).
+    BotAddress::splitChannelName(p.channel, p.role, p.sound);
     if (p.isBot) {
       // The instrument is in the username between the bracket and the marker,
       // which is also what a player reads off the mixer.
@@ -751,7 +757,13 @@ BotAddress::Room PracticeBot::currentRoom() const {
   };
 
   // Ourselves first, so the scan can find us even in an empty room.
-  add(botName, channels.empty() ? std::string() : channels[0]);
+  //
+  // The PUBLISHED name, not the one passed at construction: that is a
+  // placeholder the room never sees, and using it here would make this bot the
+  // only one in the room unable to recognise its own role.
+  add(botName, publishedChannel.empty()
+                   ? (channels.empty() ? std::string() : channels[0])
+                   : publishedChannel);
 
   const auto peers = netClient->peers();
   for (const auto &m : netClient->members()) {

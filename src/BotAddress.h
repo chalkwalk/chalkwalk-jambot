@@ -30,6 +30,18 @@ struct Participant {
   std::string handle;     // "delvo", "dave" -- lowercase, and how you address them
   std::string instrument; // "bass" -- empty for a human
   std::string channel;    // what their channel is called, lowercase
+
+  // The two halves of a `role: instrument` channel name, LIVE -- both move
+  // without anybody leaving the room (docs/BOT-CHAT.md section 16.7).
+  //
+  // Separate from `instrument` above, which comes off the username and is
+  // therefore fixed for the session. Keeping both is what lets a player reach
+  // the keyboard as "keys" -- the word it joined under -- and as "chords" or
+  // "strings", which is what its channel says now. The cost section 16.7
+  // accepts is here: these arrive asynchronously, so a bot that has just
+  // switched stays briefly addressable by what it used to be.
+  std::string role;  // "chords"
+  std::string sound; // "strings"
   bool isBot = false;
 
   // A bot whose handle collides with somebody else's name loses it: the full
@@ -48,6 +60,12 @@ struct Room {
 
   const Participant *find(const std::string &username) const;
 };
+
+// Splits `role: instrument` into its halves, lowercased. Both empty if the
+// name is not that shape -- a human's channel, or a bot from before this
+// existed, and neither is an error.
+void splitChannelName(const std::string &channel, std::string &role,
+                      std::string &sound);
 
 // What a message turned out to be, for one particular bot.
 enum class Address {
