@@ -39,7 +39,7 @@
 
 namespace jambot {
 
-class Conductor {
+class IntervalPump {
 public:
   // `render` is called once per interval, on the conductor's thread, with a
   // monotonically increasing index. It may take a while -- encoding four
@@ -52,11 +52,11 @@ public:
   // before slicing existed.
   using RenderSlice = std::function<void(int intervalIndex, int slice)>;
 
-  Conductor() = default;
-  ~Conductor() { stop(); }
+  IntervalPump() = default;
+  ~IntervalPump() { stop(); }
 
-  Conductor(const Conductor &) = delete;
-  Conductor &operator=(const Conductor &) = delete;
+  IntervalPump(const IntervalPump &) = delete;
+  IntervalPump &operator=(const IntervalPump &) = delete;
 
   void start(double intervalSeconds, RenderInterval render) {
     if (!render)

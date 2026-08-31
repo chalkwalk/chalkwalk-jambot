@@ -113,7 +113,7 @@ public:
   const std::string &name() const { return botName; }
   BotClient::Client &client() { return *netClient; }
 
-  // Conductor thread. A no-op once parted.
+  // IntervalPump thread. A no-op once parted.
   // Latch the phase this bot will render for the interval about to start, and
   // advance the state machine once for it.
   //

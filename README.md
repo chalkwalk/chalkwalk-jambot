@@ -13,7 +13,7 @@ what key are we in, can we slow down, play something else, stop, start again.
 | `BotVoice.h`, `BotDsp.h` | the instruments, and the primitives under them |
 | `BandPatch.{h,cpp}` | the tunable knobs, and the patch file format |
 | `BandPlayState.h` | Silent/Playing/Wrapping/Resolving: how a tune ends |
-| `Conductor.h` | the interval grid, driven. One thread, free-running |
+| `IntervalPump.h` | the interval grid, driven. One thread, free-running |
 | `BotAddress.{h,cpp}` | **who** a message is for |
 | `BotLanguage.{h,cpp}` | **what** it asks |
 | `BotAnswer.{h,cpp}` | what it **says back** -- pure functions over room state |

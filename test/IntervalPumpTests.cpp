@@ -1,4 +1,4 @@
-#include "../src/Conductor.h"
+#include "../src/IntervalPump.h"
 #include "JuceUnitShim.h"
 
 #include <algorithm>
@@ -26,9 +26,9 @@ struct Call {
   double msSinceStart;
 };
 
-class ConductorTests : public shim::UnitTest {
+class IntervalPumpTests : public shim::UnitTest {
 public:
-  ConductorTests() : shim::UnitTest("Conductor", "bots") {}
+  IntervalPumpTests() : shim::UnitTest("IntervalPump", "bots") {}
 
   void runTest() override {
     beginTest("an unsliced conductor fires once per interval, on the boundary");
@@ -123,7 +123,7 @@ public:
 
     beginTest("a nonsensical slice count is refused rather than guessed at");
     {
-      jambot::Conductor c;
+      jambot::IntervalPump c;
       c.start(0.2, 0, [](int, int) {});
       expect(!c.isRunning(), "zero slices started a conductor");
       c.start(0.2, -1, [](int, int) {});
@@ -135,7 +135,7 @@ public:
       // The reason this uses a condition variable rather than a sleep: an
       // interval is seconds long in the real thing, and a process that waits
       // one out before exiting reads as hung.
-      jambot::Conductor c;
+      jambot::IntervalPump c;
       c.start(5.0, 4, [](int, int) {});
 
       const auto before = std::chrono::steady_clock::now();
@@ -159,7 +159,7 @@ private:
     std::chrono::steady_clock::time_point start;
     bool started = false;
 
-    jambot::Conductor c;
+    jambot::IntervalPump c;
     c.start(intervalSeconds, slices, [&](int intervalIndex, int slice) {
       const auto now = std::chrono::steady_clock::now();
       std::lock_guard<std::mutex> sl(lock);
@@ -182,7 +182,7 @@ private:
 };
 
 TEST_CASE("conductor") {
-  ConductorTests t;
+  IntervalPumpTests t;
   t.runTest();
 }
 
