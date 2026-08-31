@@ -181,7 +181,7 @@ private:
   }
 };
 
-TEST_CASE("conductor") {
+TEST_CASE("interval pump") {
   IntervalPumpTests t;
   t.runTest();
 }

@@ -18,6 +18,7 @@ add_executable(chalkwalk_jambot_tests
     BotDspTests.cpp
     BotLanguageTests.cpp
     BotNamesTests.cpp
+    ConductorTests.cpp
     IntervalPumpTests.cpp
     InputCheckTests.cpp
     PracticeBotTests.cpp
