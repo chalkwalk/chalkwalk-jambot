@@ -196,12 +196,19 @@ void TutorBot::advance(Step from) {
   if (client && line != nullptr)
     client->sendChat(line);
 
-  // The last line and the leaving are one act. A tutor that said it would get
-  // out of the way and then stayed would be worse than one that never said it.
+  // The sign-off ends the TEACHING, not the bot. A tutor used to leave here,
+  // and section 7 argued hard for it -- "a tutorial that leaves when you have
+  // got it is a rare and good thing". It cannot now: the tutor is a conductor,
+  // and the band always has one.
+  //
+  // What section 7 was actually against is a tutorial that lingers uselessly,
+  // and a conductor is not lingering; it has a job for the rest of the session.
+  // So the property that survives is the one that mattered: the teaching is
+  // finite by construction and stops saying things, which is what the budget
+  // test holds it to.
   if (next == Step::Done) {
     if (client)
       client->sendChat(kSignOff);
-    part();
   }
 }
 

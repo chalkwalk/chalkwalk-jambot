@@ -49,7 +49,7 @@ public:
       expect(rig.tutor->step() == TutorBot::Step::FirstPlayed);
     }
 
-    beginTest("the thread runs in order and the tutor leaves at the end");
+    beginTest("the thread runs in order and the teaching ends at the end");
     {
       Rig rig;
       rig.client->plays("you");
@@ -66,8 +66,12 @@ public:
 
       // Six lines: the five steps plus the sign-off.
       expectEquals((int)rig.client->said.size(), 6);
-      expect(!rig.tutor->isActive(), "the tutor stayed after signing off");
-      expect(!rig.client->connected, "the tutor did not actually leave");
+      expect(rig.tutor->isActive(),
+             "teaching ended but the conductor left. A conductor cannot part "
+             "-- the band always has one, so section 7's 'six lines and it "
+             "parts' is now 'its teaching ends'.");
+      expect(rig.client->connected,
+             "the conductor disconnected -- only the teaching was finite");
     }
 
     beginTest("somebody else playing does not advance the newcomer's thread");
@@ -245,11 +249,17 @@ public:
         }
       }
 
+      // Counts EVERY line through the client, which is right while the
+      // conductor says nothing on its own initiative. When plural speech
+      // moves here -- the roster, the key acknowledgement, common answers --
+      // this must count TEACHING lines only, or it will fail for the wrong
+      // reason: a conductor legitimately speaks for the band forever, and only
+      // the teaching is finite by construction.
       expect((int)rig.client->said.size() <= 10,
              "the tutor said more than its whole vocabulary");
       expect(rig.tutor->step() == TutorBot::Step::Done,
              "a hundred events did not finish a six-line thread");
-      expect(!rig.tutor->isActive(), "the tutor never left");
+      expect(rig.tutor->isActive(), "the conductor left after teaching");
     }
 
     beginTest("an empty interval is not a played one");
