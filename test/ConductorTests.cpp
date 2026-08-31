@@ -27,6 +27,18 @@ struct Rig {
   }
 };
 
+// A conductor that speaks the moment it is connected, which is what the tutor
+// does to greet. It exists to pin an ordering: `connect` can fire onConnected
+// synchronously, so a conductor that is not yet "active" at that point silently
+// loses the first line it ever says.
+class GreetingConductor : public Conductor {
+public:
+  using Conductor::Conductor;
+
+protected:
+  void onConnected() override { say("hello"); }
+};
+
 class ConductorTests : public shim::UnitTest {
 public:
   ConductorTests() : shim::UnitTest("Conductor", "bots") {}
@@ -69,6 +81,18 @@ public:
       rig.conductor->say("anybody there?");
       expect(rig.client->said.empty(),
              "speech after parting is a line nobody can answer");
+    }
+
+    beginTest("a line said from onConnected is not swallowed");
+    {
+      auto owned = std::make_unique<FakeClient>();
+      auto *client = owned.get();
+      GreetingConductor c("Vell[bot]", std::move(owned));
+      c.join("127.0.0.1", 2049, 48000.0);
+      expect(client->said.size() == 1,
+             "the greeting was dropped -- `say` is guarded on being active, so "
+             "becoming active after connect() loses anything said from the "
+             "callback connect() fires");
     }
 
     beginTest("knows its own name and its owner");

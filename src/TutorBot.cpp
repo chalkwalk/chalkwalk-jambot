@@ -98,52 +98,7 @@ bool isShake(const std::string &text) {
 
 TutorBot::TutorBot(std::string name,
                    std::unique_ptr<BotClient::Client> botClient)
-    : username(std::move(name)), client(std::move(botClient)) {
-  if (client)
-    client->addListener(this);
-}
-
-TutorBot::~TutorBot() {
-  if (client) {
-    client->removeListener(this);
-    client->disconnect();
-  }
-}
-
-void TutorBot::setOwner(std::string ownerUsername) {
-  std::lock_guard<std::mutex> sl(stateMutex);
-  owner = std::move(ownerUsername);
-}
-
-bool TutorBot::join(const std::string &host, int port, double rate) {
-  if (!client)
-    return false;
-
-  client->setSampleRate(rate);
-
-  // No channel at all. The tutor sends nothing and is not a strip in anybody's
-  // mixer; it is a name in the room that talks.
-  client->setChannels({});
-
-  // Subscribed by default, because the thread is gated on hearing the owner
-  // play. It measures nothing and keeps nothing -- see `onIntervalReceived`.
-  client->setDefaultRecvEnabled(true);
-
-  client->connect(host, port, username, "");
-  {
-    std::lock_guard<std::mutex> sl(stateMutex);
-    sampleRate = rate;
-  }
-  active = true;
-  return true;
-}
-
-void TutorBot::part() {
-  if (!active.exchange(false))
-    return;
-  if (client)
-    client->disconnect();
-}
+    : Conductor(std::move(name), std::move(botClient)) {}
 
 TutorBot::Step TutorBot::step() const {
   std::lock_guard<std::mutex> sl(stateMutex);
@@ -193,8 +148,8 @@ void TutorBot::advance(Step from) {
     current = next;
   }
 
-  if (client && line != nullptr)
-    client->sendChat(line);
+  if (line != nullptr)
+    say(line);
 
   // The sign-off ends the TEACHING, not the bot. A tutor used to leave here,
   // and section 7 argued hard for it -- "a tutorial that leaves when you have
@@ -207,8 +162,7 @@ void TutorBot::advance(Step from) {
   // finite by construction and stops saying things, which is what the budget
   // test holds it to.
   if (next == Step::Done) {
-    if (client)
-      client->sendChat(kSignOff);
+    say(kSignOff);
   }
 }
 
@@ -217,15 +171,17 @@ void TutorBot::onConnected() {
     advance(Step::Greeting);
 }
 
-void TutorBot::onDisconnected(const std::string &) { active = false; }
+void TutorBot::onDisconnected(const std::string &reason) {
+  Conductor::onDisconnected(reason);
+}
 
 void TutorBot::onChatMessage(const std::string &type, const std::string &sender,
                              const std::string &text) {
-  if (!active.load())
+  if (!isActive())
     return;
 
   // Bots do not teach bots, and the tutor does not react to its own line.
-  if (BotNames::looksLikeBot(sender) || sender == username)
+  if (BotNames::looksLikeBot(sender) || sender == name())
     return;
   (void)type;
 
@@ -262,23 +218,20 @@ void TutorBot::noteDiagnostic(InputCheck::Reading reading) {
     line = lineFor(reading);
   }
 
-  if (line != nullptr && client)
-    client->sendChat(line);
+  if (line != nullptr)
+    say(line);
 }
 
 void TutorBot::onIntervalReceived(const std::string &from, int,
                                   const float *left, const float *right,
                                   int numSamples) {
-  if (!active.load() || numSamples <= 0)
+  if (!isActive() || numSamples <= 0)
     return;
 
-  double rate = 0.0;
-  {
-    std::lock_guard<std::mutex> sl(stateMutex);
-    if (!owner.empty() && from != owner)
-      return; // Somebody else playing must not carry the newcomer forward.
-    rate = sampleRate;
-  }
+  const auto ownerName = owner();
+  if (!ownerName.empty() && from != ownerName)
+    return; // Somebody else playing must not carry the newcomer forward.
+  const double rate = sampleRate();
 
   const auto reading = InputCheck::read(left, right, numSamples, rate);
 

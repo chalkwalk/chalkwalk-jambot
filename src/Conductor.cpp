@@ -41,12 +41,17 @@ bool Conductor::join(const std::string &host, int port, double r) {
   // Subscribed, because a conductor that cannot hear the room cannot lead it.
   netClient->setDefaultRecvEnabled(true);
 
-  netClient->connect(host, port, botName, "");
   {
     std::lock_guard<std::mutex> sl(stateMutex);
     rate = r;
   }
+
+  // Active BEFORE connecting, because connect() can fire onConnected
+  // synchronously and a subclass may speak from it -- the tutor greets there.
+  // `say` is guarded on this flag, so setting it afterwards silently drops the
+  // first line the conductor ever says.
   active = true;
+  netClient->connect(host, port, botName, "");
   return true;
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BotClient.h"
+#include "Conductor.h"
 #include "InputCheck.h"
 
 #include <atomic>
@@ -31,7 +32,7 @@
 // any particular client's window and must not: a bot that could drive a host's
 // UI would stop being an ordinary client, which is the property that lets any
 // client host one.
-class TutorBot : private BotClient::Listener {
+class TutorBot : public Conductor {
 public:
   // The thread, in order. Each step waits for its own trigger; nothing fires
   // early because something later happened first.
@@ -45,23 +46,15 @@ public:
   };
 
   TutorBot(std::string username, std::unique_ptr<BotClient::Client> client);
-  ~TutorBot() override;
+  ~TutorBot() override = default;
 
   TutorBot(const TutorBot &) = delete;
   TutorBot &operator=(const TutorBot &) = delete;
 
-  // Who the tutor is teaching. Only this player's audio advances the thread --
-  // a room with somebody else already playing must not carry the newcomer past
-  // the lines about their own first interval.
-  void setOwner(std::string ownerUsername);
-
-  bool join(const std::string &host, int port, double rate);
-
-  // Leaves. Idempotent, and called by the thread itself when it finishes.
-  void part();
-
-  bool isActive() const { return active.load(); }
-  const std::string &name() const { return username; }
+  // `setOwner`, `join`, `part`, `isActive`, `name` and `say` come from
+  // Conductor. Who the tutor is teaching is the OWNER, and only that player's
+  // audio advances the thread -- a room with somebody else already playing must
+  // not carry the newcomer past the lines about their own first interval.
 
   // How far through. For tests: from outside, the difference between waiting
   // for your first interval and waiting for your second is several seconds of
@@ -97,11 +90,7 @@ private:
   // a separate question, answered by the reading itself.
   void noteDiagnostic(InputCheck::Reading reading);
 
-  std::string username;
-  std::unique_ptr<BotClient::Client> client;
-
   mutable std::mutex stateMutex;
-  std::string owner;
   Step current = Step::Greeting;
 
   // What the last interval read as, and how many in a row have agreed.
@@ -113,8 +102,4 @@ private:
   // that cannot be off by one is worth one unused bool.
   bool saidDiagnostic[5] = {false, false, false, false, false};
 
-  // Needed to measure a duty cycle, and known only from `join`.
-  double sampleRate = 0.0;
-
-  std::atomic<bool> active{false};
 };
