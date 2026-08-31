@@ -53,6 +53,24 @@ public:
              "a second part is a no-op, not a crash");
     }
 
+    beginTest("says what it is told to say");
+    {
+      Rig rig;
+      rig.conductor->say("The Understudies: Mirn (kit), Vell (bass).");
+      expect(rig.client->said.size() == 1);
+      expect(rig.client->said.front() ==
+             "The Understudies: Mirn (kit), Vell (bass).");
+    }
+
+    beginTest("a parted conductor says nothing");
+    {
+      Rig rig;
+      rig.conductor->part();
+      rig.conductor->say("anybody there?");
+      expect(rig.client->said.empty(),
+             "speech after parting is a line nobody can answer");
+    }
+
     beginTest("knows its own name and its owner");
     {
       Rig rig;

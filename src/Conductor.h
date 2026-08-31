@@ -41,6 +41,10 @@ public:
 
   bool join(const std::string &host, int port, double rate);
 
+  // Speaks for the band. A no-op once parted, so a line queued behind a
+  // departure cannot arrive after the conductor has gone.
+  void say(const std::string &text);
+
   // Leaves. Idempotent -- a conductor must be as easy to get rid of as any
   // other bot.
   void part();

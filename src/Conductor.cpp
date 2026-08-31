@@ -50,6 +50,12 @@ bool Conductor::join(const std::string &host, int port, double r) {
   return true;
 }
 
+void Conductor::say(const std::string &text) {
+  if (!active.load() || !netClient)
+    return;
+  netClient->sendChat(text);
+}
+
 void Conductor::part() {
   if (!active.exchange(false))
     return;
