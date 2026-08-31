@@ -83,6 +83,15 @@ inline const std::vector<std::string> &pool() {
 // word casually in a jam. Matched in the address position only, like `band`.
 inline const char *tutorName() { return "Tutor"; }
 
+// Neither is the conductor, for the same reason and by the same rule: it is a
+// role, `conductor:` is what anybody would type without being told, and nobody
+// says the word casually in a jam.
+//
+// Like the tutor's, this name does NOT satisfy `looksLikeBot` -- no `-bot]`
+// suffix -- which is what keeps it out of `botsPresent`, out of the roster and
+// out of the band's headcount. A conductor is in the room and not in the band.
+inline const char *conductorName() { return "Conductor"; }
+
 // The suffix that makes a bot legible as one, to a human reading the mixer and
 // to other bots deciding whether to answer.
 //
