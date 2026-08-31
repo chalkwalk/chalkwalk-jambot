@@ -1,4 +1,5 @@
 #include "../src/PracticeBot.h"
+#include "FakeBotClient.h"
 #include "JuceUnitShim.h"
 
 #include <algorithm>
@@ -17,114 +18,7 @@
 namespace {
 
 // Records what the bot said and lets a test say what the room did.
-class FakeClient final : public BotClient::Client {
-public:
-  std::vector<std::string> said;
-  std::vector<std::pair<std::string, std::string>> whispered;
-  std::vector<BotClient::Member> room;
-  int intervalsSent = 0;
-  bool connected = false;
-
-  void say(const std::string &who, const std::string &what) {
-    for (auto *l : listeners)
-      l->onChatMessage("MSG", who, what);
-  }
-  void joins(const std::string &who) {
-    room.push_back({who, 1});
-    for (auto *l : listeners)
-      l->onRoomMembershipChange(who, true);
-  }
-  void leaves(const std::string &who) {
-    room.erase(std::remove_if(room.begin(), room.end(),
-                              [&](const auto &m) { return m.username == who; }),
-               room.end());
-    for (auto *l : listeners)
-      l->onRoomMembershipChange(who, false);
-  }
-
-  void addListener(BotClient::Listener *l) override { listeners.push_back(l); }
-  void removeListener(BotClient::Listener *l) override {
-    listeners.erase(std::remove(listeners.begin(), listeners.end(), l),
-                    listeners.end());
-  }
-  void setSampleRate(double) override {}
-  // Every channel name the bot has published, in order. The bot renames its
-  // own strip now, so what it sends and WHEN is behaviour rather than setup.
-  std::vector<std::string> channelNames;
-  void setChannels(const std::vector<std::string> &names) override {
-    if (!names.empty())
-      channelNames.push_back(names.front());
-  }
-  void setDefaultRecvEnabled(bool) override {}
-  void connect(const std::string &, int, const std::string &name,
-               const std::string &) override {
-    connected = true;
-    room.push_back({name, 1});
-  }
-  void disconnect() override { connected = false; }
-  bool isConnected() const override { return connected; }
-  std::vector<BotClient::Member> members() const override { return room; }
-  std::vector<BotClient::Peer> peers() const override { return {}; }
-  void setRecv(const std::string &, int, bool) override {}
-  void sendChat(const std::string &text) override { said.push_back(text); }
-  void sendPrivate(const std::string &to, const std::string &text) override {
-    whispered.push_back({to, text});
-  }
-  void transmit(const float *, const float *, int) override { ++intervalsSent; }
-
-  // Timers a test drives by hand. Nothing here waits: `fire()` runs whatever
-  // is pending, which is what makes the delayed behaviour -- the roster, the
-  // band's one voice, the departure countdown -- testable in microseconds
-  // rather than in seconds of sleeping.
-  std::unique_ptr<BotClient::Timer> createTimer(
-      std::function<void()> onFire) override {
-    auto t = std::make_unique<ManualTimer>(std::move(onFire), this);
-    return t;
-  }
-
-  void fireDueTimers() {
-    const auto pending = armed;
-    for (auto *t : pending)
-      t->fireNow();
-  }
-
-  struct ManualTimer final : public BotClient::Timer {
-    ManualTimer(std::function<void()> fn, FakeClient *owner)
-        : onFire(std::move(fn)), client(owner) {}
-    ~ManualTimer() override { stop(); }
-
-    void start(int) override {
-      if (!running) {
-        running = true;
-        client->armed.push_back(this);
-      }
-    }
-    void stop() override {
-      running = false;
-      client->armed.erase(
-          std::remove(client->armed.begin(), client->armed.end(), this),
-          client->armed.end());
-    }
-    bool isRunning() const override { return running; }
-
-    void fireNow() {
-      if (!running)
-        return;
-      stop();
-      if (onFire)
-        onFire();
-    }
-
-    std::function<void()> onFire;
-    FakeClient *client;
-    bool running = false;
-  };
-
-  std::vector<ManualTimer *> armed;
-
-private:
-  std::vector<BotClient::Listener *> listeners;
-};
+using jambot::test::FakeClient;
 
 struct Rig {
   FakeClient *fake;

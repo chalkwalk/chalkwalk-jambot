@@ -1,4 +1,5 @@
 #include "../src/TutorBot.h"
+#include "FakeBotClient.h"
 #include "JuceUnitShim.h"
 
 #include <algorithm>
@@ -17,101 +18,7 @@ namespace {
 
 // Only what a tutor touches. It never transmits, never uses a timer and never
 // whispers, so this is much smaller than the fake the players need.
-class FakeClient final : public BotClient::Client {
-public:
-  std::vector<std::string> said;
-  std::vector<std::string> channels;
-  bool connected = false;
-  bool sawChannelCall = false;
-
-  void say(const std::string &who, const std::string &what) {
-    for (auto *l : listeners)
-      l->onChatMessage("MSG", who, what);
-  }
-
-  // One interval of somebody's audio, at a level that reads as playing.
-  void plays(const std::string &who, int numSamples = 48000) {
-    std::vector<float> block((std::size_t)numSamples, 0.1f);
-    sends(who, block);
-  }
-
-  // One interval that arrives and is audible, but only just.
-  void playsQuietly(const std::string &who, int numSamples = 48000) {
-    std::vector<float> block((std::size_t)numSamples, 0.003f);
-    sends(who, block);
-  }
-
-  // One interval of full-scale sound, and one of a single-sample spike.
-  void playsClipped(const std::string &who, int numSamples = 48000) {
-    std::vector<float> block((std::size_t)numSamples, 1.0f);
-    sends(who, block);
-  }
-
-  void playsClicks(const std::string &who, int numSamples = 48000) {
-    std::vector<float> block((std::size_t)numSamples, 0.0f);
-    block[(std::size_t)(numSamples / 2)] = 1.0f;
-    sends(who, block);
-  }
-
-  // One interval with nothing in it. Not the same as no interval at all: the
-  // audio path is working and carrying silence, which is the case the tutor's
-  // first diagnostic row is about.
-  void playsNothing(const std::string &who, int numSamples = 48000) {
-    std::vector<float> block((std::size_t)numSamples, 0.0f);
-    sends(who, block);
-  }
-
-  void sends(const std::string &who, std::vector<float> &block) {
-    for (auto *l : listeners)
-      l->onIntervalReceived(who, 0, block.data(), nullptr, (int)block.size());
-  }
-
-  void addListener(BotClient::Listener *l) override { listeners.push_back(l); }
-  void removeListener(BotClient::Listener *l) override {
-    listeners.erase(std::remove(listeners.begin(), listeners.end(), l),
-                    listeners.end());
-  }
-  void setSampleRate(double) override {}
-  void setChannels(const std::vector<std::string> &names) override {
-    sawChannelCall = true;
-    channels = names;
-  }
-  void setDefaultRecvEnabled(bool) override {}
-  void connect(const std::string &, int, const std::string &,
-               const std::string &) override {
-    connected = true;
-    for (auto *l : listeners)
-      l->onConnected();
-  }
-  void disconnect() override { connected = false; }
-  bool isConnected() const override { return connected; }
-  std::vector<BotClient::Member> members() const override { return {}; }
-  std::vector<BotClient::Peer> peers() const override { return {}; }
-  void setRecv(const std::string &, int, bool) override {}
-  // Guarded because one test drives the tutor from several threads at once,
-  // which is the only way to reach the check-and-act the thread is built to
-  // survive. An unguarded vector would race in the FAKE and report the bug it
-  // was meant to be testing for.
-  void sendChat(const std::string &text) override {
-    std::lock_guard<std::mutex> sl(saidMutex);
-    said.push_back(text);
-  }
-
-  std::vector<std::string> saidCopy() const {
-    std::lock_guard<std::mutex> sl(saidMutex);
-    return said;
-  }
-  void sendPrivate(const std::string &, const std::string &) override {}
-  std::unique_ptr<BotClient::Timer>
-  createTimer(std::function<void()>) override {
-    return nullptr;
-  }
-  void transmit(const float *, const float *, int) override {}
-
-private:
-  mutable std::mutex saidMutex;
-  std::vector<BotClient::Listener *> listeners;
-};
+using jambot::test::FakeClient;
 
 struct Rig {
   FakeClient *client = nullptr;
@@ -137,7 +44,7 @@ public:
       expectEquals((int)rig.client->said.size(), 1);
       expect(rig.client->sawChannelCall,
              "the tutor never declared its channels");
-      expect(rig.client->channels.empty(),
+      expect(rig.client->lastChannels.empty(),
              "the tutor claimed a channel; it has no audio to put in one");
       expect(rig.tutor->step() == TutorBot::Step::FirstPlayed);
     }
