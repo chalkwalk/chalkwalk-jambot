@@ -2131,11 +2131,19 @@ eight is a size that can be fielded at all. The tutor stays outside the pool.
 ### 16.9 Who brings a bot in
 
 - **At startup**: the room is told how many to bring.
-- **In session**: the **tutor** brings one in. It is already the bot whose job
-  is the session rather than the music, and recruiting a bass player is an
-  arranging act. A playing bot recruiting another makes the band
-  self-replicating and puts the cap somewhere arbitrary.
-- **The cap belongs to the room**, not to the tutor: enforced where bots are
+- **In session**: the **conductor** brings one in, asked in chat. It is the bot
+  whose job is the session rather than the music, and recruiting is an arranging
+  act -- which is this section's own argument, now that there is a bot that can
+  carry it without also having to leave. A playing bot recruiting another makes
+  the band self-replicating and puts the cap somewhere arbitrary, so players
+  ignore the request entirely.
+
+  **Written here as the tutor's job, 2026-08-31, and that was the right
+  argument attached to the wrong bot.** The tutor finishes and parts (section
+  7), and a bot that has gone cannot recruit -- the two sections could not both
+  hold. They can now: the tutor IS a conductor, one that also teaches, so the
+  teaching still ends and the leader still leads.
+- **The cap belongs to the room**, not to the conductor: enforced where bots are
   actually created, so no chat path can exceed it whatever any bot decides.
   Eight in the practice room, four elsewhere -- the full roster where it costs
   nobody, a quartet where it shares a server with strangers.
