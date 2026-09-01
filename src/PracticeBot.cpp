@@ -403,6 +403,42 @@ void PracticeBot::onBandReplyDue() {
 
 void PracticeBot::onGraceExpired() { part(); }
 
+namespace {
+
+// Where a bot sits in the room's sorted bot list, and what to do when it is not
+// in it at all. An unlisted bot goes LAST rather than first, so it does not
+// land on top of whoever holds rank 0.
+int rankAmong(const std::string &botName,
+              const std::vector<std::string> &botsPresent) {
+  std::vector<std::string> ranked = botsPresent;
+  std::sort(ranked.begin(), ranked.end(), [](const auto &a, const auto &b) {
+    return cwtext::lower(a) < cwtext::lower(b);
+  });
+  const auto at = std::find(ranked.begin(), ranked.end(), botName);
+  if (at == ranked.end())
+    return (int)ranked.size();
+  return (int)std::distance(ranked.begin(), at);
+}
+
+} // namespace
+
+std::vector<std::string> PracticeBot::botsPresent() const {
+  std::vector<std::string> out;
+  out.push_back(botName);
+  for (const auto &m : netClient->members())
+    if (m.username != botName && BotNames::looksLikeBandmate(m.username))
+      out.push_back(m.username);
+  std::sort(out.begin(), out.end(), [](const auto &a, const auto &b) {
+    return cwtext::lower(a) < cwtext::lower(b);
+  });
+  return out;
+}
+
+int PracticeBot::speakDelayMs(const std::string &botName,
+                              const std::vector<std::string> &botsPresent) {
+  return 220 + rankAmong(botName, botsPresent) * kSpeakStaggerMs;
+}
+
 // The owner as the ROOM sees them. An anonymous NINJAM login arrives as
 // `anonymous:nick`, so comparing against the bare nickname never matched and
 // the eviction rules -- the ones that stop a bot outliving the player who
@@ -710,8 +746,8 @@ void PracticeBot::onChatMessage(const std::string &rawType,
       pendingBandReply = answer.text;
       heardAnotherBot = false;
       bandReplyTimer->start(answer.act != BotChat::Act::None
-                                ? kBandReplyDelayMs
-                                : kBandReplyDelayMs + kIdleSpeakerPenaltyMs);
+                                ? speakDelayMs()
+                                : speakDelayMs() + kIdleSpeakerPenaltyMs);
     }
     else
       netClient->sendChat(std::string(answer.text));

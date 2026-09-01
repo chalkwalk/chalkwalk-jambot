@@ -147,17 +147,29 @@ public:
   static bool isPartCommand(const std::string &text);
   static std::string helpLine(const std::string &botName);
 
+  // The gap between one bot waking and the next. It has to outlast a line
+  // crossing the server and coming back -- loopback is immediate, a real
+  // server is tens of milliseconds, a loaded machine is worse -- and still
+  // read as an answer rather than a pause.
+  static constexpr int kSpeakStaggerMs = 400;
+
   // How long a bot waits before confirming a COMMAND for the band.
   //
-  // The gap has to outlast a line crossing the server and coming back --
-  // loopback is immediate, a real server is tens of milliseconds, a loaded
-  // machine is worse -- and still read as an answer rather than a pause.
+  // STILL RANKED, and that is not an oversight. The arrival roster has gone to
+  // the conductor and taken its stagger with it, but a command confirmation is
+  // still four peers who might each answer -- so it still needs a guaranteed
+  // minimum separation, for the reason the roster did: a hash modulo put two
+  // bots 32ms apart and both spoke.
   //
-  // Flat, not ranked. The rank stagger was arbitration between peers, and the
-  // roster it arbitrated has gone to the conductor; what is left here is a
-  // command confirmation, which stays until the conductor OWNS commands and can
-  // say whether the band wrapped up or was already stopped.
-  static constexpr int kBandReplyDelayMs = 220;
+  // A flat delay here makes every acting bot wake at once, so none of them sees
+  // another's line before speaking and the whole arbitration stops working. It
+  // was tried, and the band answered a `band stop` three times.
+  //
+  // This goes when the conductor OWNS commands and can state the fact itself --
+  // it will know whether the band wrapped up or was already stopped because it
+  // issued the stop. Until then the mechanism stays, race and all.
+  static int speakDelayMs(const std::string &botName,
+                          const std::vector<std::string> &botsPresent);
 
 private:
   void onConnected() override;
@@ -229,6 +241,11 @@ private:
   // stops the music if there is nobody left to play it to.
   void ownerAbsent(bool everArrived);
   void ownerBack();
+
+  // Every bot in the room right now, sorted so that every bot computes the
+  // same list and therefore agrees about who speaks.
+  std::vector<std::string> botsPresent() const;
+  int speakDelayMs() const { return speakDelayMs(botName, botsPresent()); }
 
   std::string botName;
   // What was passed in at construction. A bot in a band overrides this from
