@@ -401,7 +401,7 @@ std::vector<std::string> PracticeBot::botsPresent() const {
   std::vector<std::string> out;
   out.push_back(botName);
   for (const auto &m : netClient->members())
-    if (m.username != botName && BotNames::looksLikeBot(m.username))
+    if (m.username != botName && BotNames::looksLikeBandmate(m.username))
       out.push_back(m.username);
   // Sorted so that every bot in the room computes the same list, and therefore
   // agrees about who speaks without anybody having to ask. Case-insensitive,
@@ -815,14 +815,17 @@ void PracticeBot::onChatMessage(const std::string &rawType,
   // Any message from a bot naming me counts, which is safe because bots do not
   // speak unless spoken to: during the first few seconds of a room there is
   // nothing else a bot could be saying.
-  if (BotNames::looksLikeBot(username) &&
+  if (BotNames::looksLikeBandmate(username) &&
       cwtext::contains(cwtext::lower(text),
                      cwtext::lower(BotNames::handleOf(botName))))
     announcedMe = true;
 
-  // Another bot has spoken, so a band-wide line we were about to give has
+  // Another BANDMATE has spoken, so a band-wide line we were about to give has
   // already been given. This is the whole of the arbitration.
-  if (BotNames::looksLikeBot(username))
+  //
+  // Deliberately not the roles: a tutor's greeting is not the band's roster,
+  // and counting it as one would silence the band because somebody said hello.
+  if (BotNames::looksLikeBandmate(username))
     heardAnotherBot = true;
 
   const bool isPrivate = (type == "PRIVMSG");

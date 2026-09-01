@@ -113,9 +113,32 @@ inline std::string handleOf(const std::string &username) {
 }
 
 // True if this username carries the bot marker.
-inline bool looksLikeBot(const std::string &username) {
+// Is this one of the BAND -- a player with an instrument?
+//
+// The `-bot]` suffix, and only that. Used where the question is about the band
+// itself: who is in the roster, and who is ranked against whom. The roles are
+// deliberately excluded; a conductor is in the room and not in the band.
+inline bool looksLikeBandmate(const std::string &username) {
   return username.size() > 5 &&
          username.compare(username.size() - 5, 5, "-bot]") == 0;
+}
+
+// Is this one of OURS at all -- bandmate or role?
+//
+// A different question from the one above, and the difference is the whole
+// reason both exist. Asked where the alternative is A PERSON: how many humans
+// are here, whether the room has emptied, whether an arrival is somebody worth
+// introducing the band to.
+//
+// The tutor and the conductor are named for their roles rather than with the
+// `-bot]` suffix, which is right for addressing them and was wrong here: a room
+// with a tutor had every bot counting it as a human, so the roster re-posted
+// when it joined and the band never saw an empty room. That was live for as
+// long as the tutor has existed -- it is on by default at the command line --
+// and stayed hidden because the test fixture turns the tutor off.
+inline bool looksLikeBot(const std::string &username) {
+  return looksLikeBandmate(username) || username == tutorName() ||
+         username == conductorName();
 }
 
 // Pick `count` names, skipping any that collide with somebody already in the
