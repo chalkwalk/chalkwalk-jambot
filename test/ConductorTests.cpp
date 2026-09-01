@@ -108,8 +108,19 @@ public:
 
       rig.client->fireDueTimers();
 
-      expect(rig.client->said.size() == 1, "expected exactly one roster line");
+      expect(rig.client->said.size() == 2,
+             "expected a roster and the line that says how to use it");
       const auto &line = rig.client->said.front();
+
+      // The way IN first, then how to reach one of us, and the destructive one
+      // last: a first-time player who types the first command they are shown
+      // must not empty their own room.
+      const auto &how = rig.client->said[1];
+      const auto nameAt = how.find("say a name");
+      const auto leaveAt = how.find("leave");
+      expect(nameAt != std::string::npos && leaveAt != std::string::npos, how);
+      expect(nameAt < leaveAt,
+             "the eviction command is offered before the interesting one: " + how);
       expect(line.find("The Understudies") != std::string::npos, line);
       expect(line.find("quado") != std::string::npos, line);
       expect(line.find("vessa") != std::string::npos, line);
@@ -121,7 +132,7 @@ public:
       rig.client->joins("Quado[kit-bot]");
       rig.client->fireDueTimers();
       const auto after = rig.client->said.size();
-      expect(after == 1, "no roster to begin with");
+      expect(after == 2, "no roster to begin with");
 
       // The timer must be RE-ARMED to test this at all. `fireDueTimers` fires
       // only armed timers and ManualTimer stops itself before firing, so
@@ -142,7 +153,7 @@ public:
       rig.client->joins("you");
       rig.client->fireDueTimers();
 
-      expect(rig.client->said.size() == 1);
+      expect(rig.client->said.size() == 2);
       expect(rig.client->said.front().find("you") == std::string::npos,
              "the roster listed a human: " + rig.client->said.front());
     }
@@ -184,17 +195,17 @@ public:
       rig.client->joins("Quado[kit-bot]");
       rig.client->fireDueTimers();
       const auto toNobody = rig.client->said.size();
-      expect(toNobody == 1, "it should still have introduced the band");
+      expect(toNobody == 2, "it should still have introduced the band");
 
       rig.client->joins("you");
       rig.client->fireDueTimers();
-      expect(rig.client->said.size() == toNobody + 1,
+      expect(rig.client->said.size() == toNobody + 2,
              "a human arrived and the band was not introduced to them");
 
       // A second human is not a second roster.
       rig.client->joins("dave");
       rig.client->fireDueTimers();
-      expect(rig.client->said.size() == toNobody + 1,
+      expect(rig.client->said.size() == toNobody + 2,
              "the band introduced itself again for a second human");
     }
 

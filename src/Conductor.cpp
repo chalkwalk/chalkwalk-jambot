@@ -141,6 +141,18 @@ void Conductor::onArrivalDue() {
   roster += ".";
 
   say(roster);
+
+  // How to use the band, said once, beside the line that says who they are.
+  //
+  // The only answer to "how would anybody know they can talk to these things",
+  // so it travels with the roster rather than waiting to be asked.
+  //
+  // The interesting thing first and the destructive one last, stated plainly
+  // enough that nobody types it idly: leading with `leave` would invite a
+  // curious player to empty their own room with the first command they were
+  // shown.
+  say("say \"band play\" to start us and \"band stop\" to end the tune. say a "
+      "name to talk to one of us. say \"leave\" and we all go home.");
 }
 
 void Conductor::say(const std::string &text) {
