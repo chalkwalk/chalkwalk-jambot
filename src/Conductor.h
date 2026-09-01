@@ -45,6 +45,18 @@ public:
   // departure cannot arrive after the conductor has gone.
   void say(const std::string &text);
 
+  // What the band calls itself, if anything. Empty means the roster is just a
+  // list of names.
+  void setBandName(std::string name);
+
+  // Long enough for the join notices to finish scrolling before the one line
+  // anybody is meant to read.
+  //
+  // NOT staggered, which is the point of moving this here: there is one
+  // conductor, so there is nobody to stagger against. `PracticeBot` used this
+  // base plus a per-bot rank offset, and the offset is what raced.
+  static constexpr int kArrivalDelayMs = 4000;
+
   // Leaves. Idempotent -- a conductor must be as easy to get rid of as any
   // other bot.
   void part();
@@ -56,13 +68,21 @@ protected:
   BotClient::Client *client() { return netClient.get(); }
   double sampleRate() const;
 
+  // Names the band, once. Virtual so a subclass can extend the arrival without
+  // this file knowing anything about it.
+  virtual void onArrivalDue();
+
 private:
   std::string botName;
   std::unique_ptr<BotClient::Client> netClient;
 
   mutable std::mutex stateMutex;
   std::string ownerName;
+  std::string bandName;
   double rate = 0.0;
+
+  std::unique_ptr<BotClient::Timer> arrivalTimer;
+  std::atomic<bool> arrivalDone{false};
 
   std::atomic<bool> active{false};
 };
