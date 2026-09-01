@@ -4,6 +4,7 @@
 #include "BotNames.h"
 
 #include <chrono>
+#include <set>
 
 #include <algorithm>
 #include <vector>
@@ -106,6 +107,22 @@ void Conductor::onRoomMembershipChange(const std::string &username,
     arrivalTimer->start(kArrivalDelayMs);
 }
 
+// A player as the room should hear them named: "vurn (horn)".
+//
+// One home, because the roster and the line that names a newcomer must agree --
+// somebody introduced as "vurn (horn)" and later listed as "Vurn[horn-bot]"
+// reads as two people.
+std::string Conductor::describe(const std::string &username) {
+  const auto handle = BotNames::handleOf(username);
+  const auto open = username.find('[');
+  if (open == std::string::npos)
+    return handle;
+  const auto rest = username.substr(open + 1);
+  const auto end = rest.find("-bot]");
+  const auto instrument = end == std::string::npos ? rest : rest.substr(0, end);
+  return instrument.empty() ? handle : handle + " (" + instrument + ")";
+}
+
 void Conductor::setRecruit(Recruit r) {
   std::lock_guard<std::mutex> sl(stateMutex);
   recruit = std::move(r);
@@ -158,6 +175,13 @@ void Conductor::onChatMessage(const std::string &type,
   if (BotLanguage::read(rest).intent != BotLanguage::Intent::AddPlayer)
     return;
 
+  // Who was here BEFORE asking, so that whoever is here afterwards and was not
+  // before is the newcomer. The alternative is trusting the host to hand back a
+  // name, which makes the arranging order two people's business.
+  std::set<std::string> seen;
+  for (const auto &m : netClient->members())
+    seen.insert(m.username);
+
   Recruit ask;
   {
     std::lock_guard<std::mutex> sl(stateMutex);
@@ -166,9 +190,23 @@ void Conductor::onChatMessage(const std::string &type,
   if (!ask)
     return;
 
-  if (ask())
-    say("bringing somebody else in.");
-  else
+  if (ask()) {
+    // Named, not merely acknowledged. A band that gains a player without a word
+    // reads as a process starting, which is what the roster exists to prevent.
+    // The roster is not re-posted -- everybody has met the others already -- so
+    // this is the one line that says who just arrived.
+    //
+    // Read from the room rather than returned by the callback: the host has
+    // added the player by now, and asking the room is what keeps the arranging
+    // order and the naming its business rather than ours.
+    std::string newest;
+    for (const auto &m : netClient->members())
+      if (BotNames::looksLikeBandmate(m.username) && !seen.count(m.username))
+        newest = describe(m.username);
+
+    say(newest.empty() ? "bringing somebody else in."
+                       : "bringing " + newest + " in.");
+  } else
     say("that is as many of us as this room takes.");
 }
 
@@ -179,20 +217,9 @@ void Conductor::onArrivalDue() {
     return;
 
   std::vector<std::string> entries;
-  for (const auto &m : netClient->members()) {
-    if (!BotNames::looksLikeBandmate(m.username))
-      continue;
-    const auto handle = BotNames::handleOf(m.username);
-    const auto open = m.username.find('[');
-    std::string instrument;
-    if (open != std::string::npos) {
-      const auto rest = m.username.substr(open + 1);
-      const auto end = rest.find("-bot]");
-      instrument = end == std::string::npos ? rest : rest.substr(0, end);
-    }
-    entries.push_back(instrument.empty() ? handle
-                                         : handle + " (" + instrument + ")");
-  }
+  for (const auto &m : netClient->members())
+    if (BotNames::looksLikeBandmate(m.username))
+      entries.push_back(describe(m.username));
 
   if (entries.empty())
     return;

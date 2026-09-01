@@ -221,6 +221,30 @@ public:
       expect(!rig.client->said.empty(), "it said nothing about it");
     }
 
+    beginTest("it names the newcomer, so the band does not grow silently");
+    {
+      // A band that gains a player without a word reads as a process starting,
+      // which is what the roster exists to prevent. The roster itself is not
+      // re-posted -- everyone already met the others -- so this is the one
+      // line that says who just arrived.
+      Rig rig;
+      rig.client->joins("you");
+      rig.conductor->setRecruit([&] {
+        // Whoever hosts the room adds the player, so by the time the callback
+        // returns the newcomer is in the room. The conductor reads the room
+        // rather than being told a name.
+        rig.client->joins("Vurn[horn-bot]");
+        return true;
+      });
+      rig.client->say("you", "band, add a player");
+
+      expect(!rig.client->said.empty());
+      expect(rig.client->said.back().find("vurn") != std::string::npos,
+             "the newcomer was not named: " + rig.client->said.back());
+      expect(rig.client->said.back().find("horn") != std::string::npos,
+             "it did not say what they play: " + rig.client->said.back());
+    }
+
     beginTest("a refusal is a rule speaking, not silence");
     {
       Rig rig;

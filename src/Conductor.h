@@ -83,6 +83,9 @@ protected:
   // this file knowing anything about it.
   virtual void onArrivalDue();
 
+  // A player as the room should hear them named: "vurn (horn)".
+  static std::string describe(const std::string &username);
+
 private:
   void onRoomMembershipChange(const std::string &username,
                               bool joined) override;
