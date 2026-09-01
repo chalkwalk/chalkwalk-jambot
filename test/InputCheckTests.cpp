@@ -16,6 +16,11 @@ namespace {
 
 constexpr double kSr = 48000.0;
 
+// Not `M_PI`: that is a POSIX extension rather than standard C++, and MSVC
+// does not define it without _USE_MATH_DEFINES -- so this file built on Linux
+// and macOS and failed on Windows for as long as it has existed.
+constexpr double kPi = 3.14159265358979323846;
+
 // A whole interval at 100 bpm and bpi 16 -- the practice room's own shape, and
 // long enough that a single short note really is a tiny fraction of it. That
 // fraction is the trap this instrument was rebuilt to avoid.
@@ -29,7 +34,7 @@ std::vector<float> sine(double hz, double amplitude, int n = kInterval) {
   std::vector<float> out((std::size_t)n);
   for (int i = 0; i < n; ++i)
     out[(std::size_t)i] =
-        (float)(amplitude * std::sin(2.0 * M_PI * hz * i / kSr));
+        (float)(amplitude * std::sin(2.0 * kPi * hz * i / kSr));
   return out;
 }
 
@@ -43,7 +48,7 @@ void strike(std::vector<float> &buf, int at, double hz, double amplitude,
     if (env < 1e-5)
       break;
     buf[(std::size_t)i] +=
-        (float)(amplitude * env * std::sin(2.0 * M_PI * hz * t));
+        (float)(amplitude * env * std::sin(2.0 * kPi * hz * t));
   }
 }
 
