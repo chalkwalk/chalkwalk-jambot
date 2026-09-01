@@ -927,6 +927,28 @@ not getting here. See §9.
 
 ### Arriving, in order
 
+> **SUPERSEDED, 2026-09-01: the CONDUCTOR announces the band.** The roster and
+> the joining instructions are one fact about the room, said once by the bot
+> that speaks for the band, so no bot asks "has somebody announced me?" any
+> more and no bot waits its turn to find out.
+>
+> What survives is the half that was never about arbitration: the roster is
+> still **observed rather than configured** -- the conductor lists what it can
+> see, so a bot that failed to connect is not announced as present and nothing
+> has to be told to anybody. What goes is the self-referential rule below and
+> the stagger it needed, which raced about one run in seven right up until it
+> was removed. A single announcer needs no tiebreak, which is why the two cases
+> "a tiebreak cannot reach" stopped being interesting rather than being solved.
+>
+> One of those cases is genuinely LOST rather than subsumed: a player joining
+> long after the roster is no longer announced at all. That is tracked in
+> Antiphon's `ROADMAP.md` against *A band of more than four*, because the moment
+> worth announcing is when somebody is ADDED.
+>
+> Kept rather than deleted: it is the argument for why the old shape was the
+> right one without an authority, and the design that replaced it is in
+> Antiphon's `docs/superpowers/specs/2026-08-31-conductor-design.md`.
+
 The opening ten seconds are the only ones where every player is definitely
 reading the chat, so they are worth choreographing rather than leaving to
 whoever connects first.
