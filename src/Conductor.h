@@ -1,8 +1,10 @@
 #pragma once
 
+#include "BotAddress.h"
 #include "BotClient.h"
 
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -49,6 +51,15 @@ public:
   // list of names.
   void setBandName(std::string name);
 
+  // Asks for one more player. Returns true if one was added.
+  //
+  // A callback rather than an interface, because the only thing this library
+  // needs to know is whether it worked. The cap, the naming and the arranging
+  // order all belong to whoever hosts the room, and a conductor that knew about
+  // them would be a second place they could be got wrong.
+  using Recruit = std::function<bool()>;
+  void setRecruit(Recruit r);
+
   // Long enough for the join notices to finish scrolling before the one line
   // anybody is meant to read.
   //
@@ -75,6 +86,8 @@ protected:
 private:
   void onRoomMembershipChange(const std::string &username,
                               bool joined) override;
+  void onChatMessage(const std::string &type, const std::string &username,
+                     const std::string &text) override;
 
 protected:
 
@@ -86,6 +99,9 @@ private:
   std::string ownerName;
   std::string bandName;
   double rate = 0.0;
+
+  Recruit recruit;
+  BotAddress::Attention attention;
 
   std::unique_ptr<BotClient::Timer> arrivalTimer;
   std::atomic<bool> arrivalDone{false};

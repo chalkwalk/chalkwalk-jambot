@@ -209,6 +209,67 @@ public:
              "the band introduced itself again for a second human");
     }
 
+    beginTest("asked for another player, it asks the room");
+    {
+      Rig rig;
+      int asked = 0;
+      rig.conductor->setRecruit([&] { ++asked; return true; });
+      rig.client->joins("you");
+      rig.client->say("you", "band, add a player");
+
+      expect(asked == 1, "the conductor did not ask the room");
+      expect(!rig.client->said.empty(), "it said nothing about it");
+    }
+
+    beginTest("a refusal is a rule speaking, not silence");
+    {
+      Rig rig;
+      rig.conductor->setRecruit([&] { return false; });
+      rig.client->joins("you");
+      const auto before = rig.client->said.size();
+      rig.client->say("you", "band, add a player");
+
+      expect(rig.client->said.size() == before + 1,
+             "the room refused and nobody said so");
+      const auto &line = rig.client->said.back();
+      expect(line.find("as many") != std::string::npos,
+             "the refusal does not say why: " + line);
+    }
+
+    beginTest("an unaddressed request is not one");
+    {
+      Rig rig;
+      int asked = 0;
+      rig.conductor->setRecruit([&] { ++asked; return true; });
+      rig.client->joins("you");
+      rig.client->say("you", "add a player");
+
+      expect(asked == 0,
+             "nobody is addressed by default, and a conductor is not an "
+             "exception to that");
+    }
+
+    beginTest("it does not recruit on a bot's say-so");
+    {
+      // The band's own chat is the loudest thing in a practice room, and a
+      // conductor that recruited on a bot's line would grow the band with
+      // nobody asking.
+      //
+      // Enforced in `BotAddress::classify`, which returns Ignore for any bot
+      // sender -- "a bot never triggers a bot", stated there as a property of
+      // what can cause speech at all. A guard here as well was written and
+      // then removed: it was a second home for one rule, and removing it did
+      // not change this result, which is how it was found to be duplication
+      // rather than defence.
+      Rig rig;
+      int asked = 0;
+      rig.conductor->setRecruit([&] { ++asked; return true; });
+      rig.client->joins("Quado[kit-bot]");
+      rig.client->say("Quado[kit-bot]", "band, add a player");
+
+      expect(asked == 0, "a bot asked for a player and the conductor obliged");
+    }
+
     beginTest("knows its own name and its owner");
     {
       Rig rig;

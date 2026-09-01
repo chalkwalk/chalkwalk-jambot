@@ -1,6 +1,9 @@
 #include "Conductor.h"
 
+#include "BotLanguage.h"
 #include "BotNames.h"
+
+#include <chrono>
 
 #include <algorithm>
 #include <vector>
@@ -101,6 +104,72 @@ void Conductor::onRoomMembershipChange(const std::string &username,
   arrivalDone = false;
   if (arrivalTimer)
     arrivalTimer->start(kArrivalDelayMs);
+}
+
+void Conductor::setRecruit(Recruit r) {
+  std::lock_guard<std::mutex> sl(stateMutex);
+  recruit = std::move(r);
+}
+
+void Conductor::onChatMessage(const std::string &type,
+                              const std::string &username,
+                              const std::string &text) {
+  if (!isActive() || type != "MSG")
+    return;
+
+  // Only a person may ask. The band's own chat is the loudest thing in a
+  // practice room, and a conductor that recruited on a bot's line would grow
+  // the band with nobody asking for it.
+  BotAddress::Room room;
+  auto add = [&room](const std::string &name) {
+    BotAddress::Participant p;
+    p.username = name;
+    p.handle = BotNames::handleOf(name);
+    p.isBot = BotNames::looksLikeBot(name);
+    room.participants.push_back(p);
+  };
+
+  // Ourselves first, so the scan can find us even in an empty room: a client
+  // never appears in its own `members()`.
+  add(botName);
+  for (const auto &m : netClient->members())
+    if (m.username != botName)
+      add(m.username);
+  room.resolveHandles();
+
+  BotAddress::Incoming in;
+  in.sender = username;
+  in.text = text;
+  in.isPrivate = false;
+  using namespace std::chrono;
+  in.at = duration<double>(steady_clock::now().time_since_epoch()).count();
+
+  // `Collective` is the one that matters: "band, add a player" is addressed to
+  // all of us, and growing the band is one answer about the room. `Named` and
+  // `Continuation` count too, so `conductor: add a player` and a follow-up
+  // inside the attention window both work.
+  const auto who = BotAddress::classify(room, botName, in, attention);
+  if (who != BotAddress::Address::Collective &&
+      who != BotAddress::Address::Named &&
+      who != BotAddress::Address::Continuation)
+    return;
+
+  const auto rest = BotAddress::withoutAddress(room, botName, text);
+  if (BotLanguage::read(rest).intent != BotLanguage::Intent::AddPlayer)
+    return;
+
+  Recruit ask;
+  {
+    std::lock_guard<std::mutex> sl(stateMutex);
+    ask = recruit;
+  }
+  if (!ask)
+    return;
+
+  if (ask())
+    say("bringing somebody else in.");
+  else
+    say("that is as many of us as this room takes.");
 }
 
 void Conductor::onArrivalDue() {
