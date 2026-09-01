@@ -96,7 +96,6 @@ public:
   // band's NAME: two strangers' bots in one room are a list, not a band, and
   // calling them one would be a small lie in the first line anybody reads.
   // A bot told nothing simply lists whoever it can see.
-  void setBandmates(std::vector<std::string> names, std::string bandName);
 
   // Whose audio this bot wants. Empty subscribes to nobody, which is the
   // default and what a generative bot wants: it follows the grid, not the room,
@@ -148,29 +147,17 @@ public:
   static bool isPartCommand(const std::string &text);
   static std::string helpLine(const std::string &botName);
 
-  // The gap between one bot waking and the next. It has to outlast a line
-  // crossing the server and coming back -- loopback is immediate, a real
-  // server is tens of milliseconds, a loaded machine is worse -- and still
-  // read as an answer rather than a pause.
-  static constexpr int kSpeakStaggerMs = 400;
-
-  // How long a bot waits before speaking for the band.
+  // How long a bot waits before confirming a COMMAND for the band.
   //
-  // RANK in the room's sorted bot list, not a hash of the name. A hash modulo
-  // has no minimum separation: it put two of four bots 32ms apart, and two
-  // timers due that close fire in one scheduling wake, before either line has
-  // been seen by the other. Both bots then answered, which is exactly what the
-  // arbitration exists to prevent. It held on Linux and not on macOS, which is
-  // to say it never held -- it was luck with a margin nobody had measured.
+  // The gap has to outlast a line crossing the server and coming back --
+  // loopback is immediate, a real server is tens of milliseconds, a loaded
+  // machine is worse -- and still read as an answer rather than a pause.
   //
-  // `botsPresent` is sorted, so every bot computes the same ranking and they
-  // agree about who speaks without asking each other.
-  //
-  // Public because a test of the arbitration that cannot say WHICH bot would
-  // win a race is not testing the arbitration: it passes or fails on which
-  // names the seed happened to pick.
-  static int speakDelayMs(const std::string &botName,
-                          const std::vector<std::string> &botsPresent);
+  // Flat, not ranked. The rank stagger was arbitration between peers, and the
+  // roster it arbitrated has gone to the conductor; what is left here is a
+  // command confirmation, which stays until the conductor OWNS commands and can
+  // say whether the band wrapped up or was already stopped.
+  static constexpr int kBandReplyDelayMs = 220;
 
 private:
   void onConnected() override;
@@ -180,16 +167,9 @@ private:
   void onRoomMembershipChange(const std::string &username,
                               bool joined) override;
 
-  // The arrival window: five seconds after connecting, decide whether to
-  // announce the band, introduce ourselves, or stay quiet.
-  void onArrivalDue();
-  int arrivalDelayMs() const;
   static bool isOwnerName(const std::string &username,
                           const std::string &ownerName);
 
-  // Every bot in the room right now, ours or not, sorted so that every bot
-  // computes the same list and therefore the same answer.
-  std::vector<std::string> botsPresent() const;
   void onChatMessage(const std::string &type, const std::string &username,
                      const std::string &text) override;
 
@@ -236,7 +216,6 @@ private:
 
   // All three fire on the thread the client delivers callbacks on, which is
   // what lets them read and write the state above without a lock.
-  std::unique_ptr<BotClient::Timer> arrivalTimer;
   std::unique_ptr<BotClient::Timer> bandReplyTimer;
   std::unique_ptr<BotClient::Timer> graceTimer;
 
@@ -250,8 +229,6 @@ private:
   // stops the music if there is nobody left to play it to.
   void ownerAbsent(bool everArrived);
   void ownerBack();
-
-  int speakDelayMs() const { return speakDelayMs(botName, botsPresent()); }
 
   std::string botName;
   // What was passed in at construction. A bot in a band overrides this from
@@ -303,10 +280,6 @@ private:
   // has been introduced, because that is observed rather than inferred. One
   // question covers the ordinary startup, a bot arriving an hour late, and a
   // band whose other members never connected.
-  std::atomic<bool> announcedMe{false};
-  std::atomic<bool> arrivalDone{false};
-  std::vector<std::string> bandmates;
-  std::string bandName;
 
   // One conversation, with one person. Belongs to whoever opened it, not to
   // the room -- two other people talking are not talking to the bot.

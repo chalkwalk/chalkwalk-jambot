@@ -73,6 +73,12 @@ protected:
   virtual void onArrivalDue();
 
 private:
+  void onRoomMembershipChange(const std::string &username,
+                              bool joined) override;
+
+protected:
+
+private:
   std::string botName;
   std::unique_ptr<BotClient::Client> netClient;
 

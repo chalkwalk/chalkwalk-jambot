@@ -173,6 +173,31 @@ public:
              "arrival, so the default room would have had no roster");
     }
 
+    beginTest("it waits for somebody to read the roster");
+    {
+      // The room is started by a host process, so the band connects seconds
+      // before any human does. Announcing on a fixed timer means announcing to
+      // an empty room -- the one line the band gets, said to nobody. So the
+      // arrival re-arms for the FIRST human, and only the first: with anybody
+      // else already there the band has been seen.
+      Rig rig;
+      rig.client->joins("Quado[kit-bot]");
+      rig.client->fireDueTimers();
+      const auto toNobody = rig.client->said.size();
+      expect(toNobody == 1, "it should still have introduced the band");
+
+      rig.client->joins("you");
+      rig.client->fireDueTimers();
+      expect(rig.client->said.size() == toNobody + 1,
+             "a human arrived and the band was not introduced to them");
+
+      // A second human is not a second roster.
+      rig.client->joins("dave");
+      rig.client->fireDueTimers();
+      expect(rig.client->said.size() == toNobody + 1,
+             "the band introduced itself again for a second human");
+    }
+
     beginTest("knows its own name and its owner");
     {
       Rig rig;

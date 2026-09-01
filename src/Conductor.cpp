@@ -75,6 +75,34 @@ void Conductor::setBandName(std::string name) {
   bandName = std::move(name);
 }
 
+// Introduce the band to the first person who turns up.
+//
+// The room is started by a host process, so the band connects seconds before
+// any human does -- which means a fixed timer introduces the band to an empty
+// room, and the one line it gets is said to nobody. Re-arming for the first
+// human runs the same announcement when somebody can read it.
+//
+// Only for the first: with anybody else already present the band has been
+// seen, and a roster per arrival is the chattiness this design exists to avoid.
+void Conductor::onRoomMembershipChange(const std::string &username,
+                                       bool joined) {
+  if (!joined || BotNames::looksLikeBot(username))
+    return;
+
+  int otherHumans = 0;
+  for (const auto &m : netClient->members())
+    if (m.username != username && m.username != botName &&
+        !BotNames::looksLikeBot(m.username))
+      ++otherHumans;
+
+  if (otherHumans != 0)
+    return;
+
+  arrivalDone = false;
+  if (arrivalTimer)
+    arrivalTimer->start(kArrivalDelayMs);
+}
+
 void Conductor::onArrivalDue() {
   // Once per room. There is no "unless somebody else already did it" here --
   // that question only existed because there were peers who might have.

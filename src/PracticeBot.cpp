@@ -35,7 +35,6 @@ PracticeBot::PracticeBot(std::string name, std::vector<std::string> channelNames
   netClient->setDefaultRecvEnabled(false);
   netClient->addListener(this);
 
-  arrivalTimer = netClient->createTimer([this] { onArrivalDue(); });
   bandReplyTimer = netClient->createTimer([this] { onBandReplyDue(); });
   graceTimer = netClient->createTimer([this] { onGraceExpired(); });
 }
@@ -156,7 +155,6 @@ void PracticeBot::part() {
   // Idempotent, and terminal: see onDisconnected for why there is no rejoin.
   if (!active.exchange(false))
     return;
-  arrivalTimer->stop();
   bandReplyTimer->stop();
   graceTimer->stop();
   netClient->disconnect();
@@ -391,97 +389,7 @@ std::string PracticeBot::helpLine(const std::string &name) {
                 "will go.";
 }
 
-void PracticeBot::setBandmates(std::vector<std::string> names, std::string name) {
-  std::lock_guard<std::mutex> sl(stateMutex);
-  bandmates = std::move(names);
-  bandName = std::move(name);
-}
 
-std::vector<std::string> PracticeBot::botsPresent() const {
-  std::vector<std::string> out;
-  out.push_back(botName);
-  for (const auto &m : netClient->members())
-    if (m.username != botName && BotNames::looksLikeBandmate(m.username))
-      out.push_back(m.username);
-  // Sorted so that every bot in the room computes the same list, and therefore
-  // agrees about who speaks without anybody having to ask. Case-insensitive,
-  // as the sort it replaces was.
-  std::sort(out.begin(), out.end(), [](const auto &a, const auto &b) {
-    return chalkwalk::music::text::lower(a) < chalkwalk::music::text::lower(b);
-  });
-  return out;
-}
-
-void PracticeBot::onArrivalDue() {
-  if (!active.load() || arrivalDone.exchange(true))
-    return;
-
-  // The rule: announce unless somebody has already announced ME.
-  //
-  // Self-referential, and that is what makes it work where a tiebreak does not.
-  // A bot cannot know whether it is "first" -- at connect time the membership
-  // list has not arrived, so every bot sees an empty room -- but it can always
-  // know whether it has been introduced, because being introduced is something
-  // it observes rather than something it has to infer.
-  //
-  // Everything falls out of that one question. During startup the earliest
-  // waker sees the whole band and names all of them, so the others find
-  // themselves already announced and stay quiet: one roster. A bot that joins
-  // an hour later has not been announced, so it speaks -- and it names the band
-  // it can see, which now includes everybody, so THE ANNOUNCEMENT LANDS WHEN
-  // THE BAND IS COMPLETE rather than being lost because the moment passed. A
-  // bot whose bandmates all failed to connect announces itself alone, correctly.
-  if (announcedMe.load())
-    return;
-
-  const auto bots = botsPresent();
-
-  // The roster lists what is ACTUALLY HERE, not what we were told to expect: a
-  // bot that failed to connect is not announced as present, and bots brought by
-  // two different people still make one sensible list.
-  std::vector<std::string> entries;
-  bool allSiblings = true;
-  {
-    std::lock_guard<std::mutex> sl(stateMutex);
-    for (const auto &name : bots) {
-      if (!bandmates.empty() &&
-          std::find(bandmates.begin(), bandmates.end(), name) == bandmates.end())
-        allSiblings = false;
-
-      const auto open = name.find('[');
-      const std::string handle =
-          open == std::string::npos ? name : name.substr(0, open);
-      std::string instrument;
-      if (open != std::string::npos) {
-        const auto rest = name.substr(open + 1);
-        const auto end = rest.find("-bot]");
-        instrument = end == std::string::npos ? rest : rest.substr(0, end);
-      }
-      entries.push_back(instrument.empty() ? handle
-                                           : handle + " (" + instrument + ")");
-    }
-  }
-
-  std::string roster;
-  {
-    std::lock_guard<std::mutex> sl(stateMutex);
-    if (allSiblings && !bandName.empty())
-      roster = bandName + " -- ";
-  }
-  roster += chalkwalk::music::text::join(entries, ", ") + ".";
-
-  netClient->sendChat(std::string(roster));
-
-  // The interesting thing first, and the destructive one stated so plainly
-  // that nobody types it idly. Leading with `part` would invite a curious
-  // player to empty their own room with the first command they were shown.
-  // The way IN first, because the band is silent and a room where nothing
-  // happens looks broken; then how to talk to one of us; and the destructive
-  // one last and stated plainly enough that nobody types it idly.
-  netClient->sendChat(
-      "say \"band play\" to start us and \"band stop\" to end the tune. say a "
-      "name to talk to one of us. say \"leave\" and we all go home.");
-}
 
 void PracticeBot::onBandReplyDue() {
   // Somebody got there first, so the room already has its answer. Saying it
@@ -494,49 +402,6 @@ void PracticeBot::onBandReplyDue() {
 }
 
 void PracticeBot::onGraceExpired() { part(); }
-
-namespace {
-
-// Where a bot sits in the room's sorted bot list, and what to do when it is
-// not in it at all.
-//
-// An unlisted bot goes LAST rather than first. It happens when the roster is
-// still filling, and a bot that has not yet seen the others is the one least
-// entitled to speak for them.
-int rankAmong(const std::string &botName,
-              const std::vector<std::string> &botsPresent) {
-  // Sorted HERE rather than trusted from the caller, even though
-  // `botsPresent()` already sorts. Two bots must compute the same rank for the
-  // same name or they do not agree about who speaks, and a guarantee that
-  // depends on every caller remembering something is the shape of defect this
-  // function was just rewritten to remove.
-  std::vector<std::string> ranked = botsPresent;
-  std::sort(ranked.begin(), ranked.end(), [](const auto &a, const auto &b) {
-    return chalkwalk::music::text::lower(a) < chalkwalk::music::text::lower(b);
-  });
-
-  const auto at = std::find(ranked.begin(), ranked.end(), botName);
-  if (at == ranked.end())
-    return (int)ranked.size();
-  return (int)std::distance(ranked.begin(), at);
-}
-
-} // namespace
-
-int PracticeBot::speakDelayMs(const std::string &botName,
-                              const std::vector<std::string> &botsPresent) {
-  return 220 + rankAmong(botName, botsPresent) * kSpeakStaggerMs;
-}
-
-int PracticeBot::arrivalDelayMs() const {
-  // Ranked, for the reason speakDelayMs is: the roster is arbitrated the same
-  // way, and a hash put two bots 32ms apart here too -- which is how the room
-  // came to be introduced twice.
-  //
-  // The base is longer because this one waits for a room to assemble rather
-  // than for a question to be answered.
-  return 4000 + rankAmong(botName, botsPresent()) * kSpeakStaggerMs;
-}
 
 // The owner as the ROOM sees them. An anonymous NINJAM login arrives as
 // `anonymous:nick`, so comparing against the bare nickname never matched and
@@ -559,18 +424,6 @@ void PracticeBot::onConnected() {
   // a room being started and forgotten. Cancelled the moment the owner shows.
   if (!graceTimer->isRunning())
     graceTimer->start(initialGraceMs);
-
-  // The arrival window: four seconds plus up to two more.
-  //
-  // The wait lets the join notices finish scrolling before the one line anybody
-  // is meant to read. The SPREAD is what keeps two bots from announcing at
-  // once -- whoever wakes first names the others, and they find themselves
-  // already introduced. See onArrivalDue.
-  //
-  // Derived from the name rather than drawn randomly, so a room is reproducible
-  // and a test can rely on it. Different names give different offsets, which is
-  // all the spread has to do.
-  arrivalTimer->start(arrivalDelayMs());
 
   // Beyond that, nothing to do. The channel list was stored before connecting and
   // NinjamClient sends it itself the moment auth succeeds
@@ -611,30 +464,9 @@ void PracticeBot::onRoomMembershipChange(const std::string &rawUsername,
     std::lock_guard<std::mutex> sl(stateMutex);
     ownerName = owner;
   }
-  // Introduce the band to the first person who turns up.
-  //
-  // The roster fires a few seconds after the BOTS connect, which in a room
-  // started by a host process is several seconds before any human is there --
-  // so the one line the band gets to introduce itself with was reliably said to
-  // an empty room. Re-arming for the first human keeps the same rule ("announce
-  // unless somebody announced me") and simply runs it when somebody can read it.
-  //
-  // Only for the first: with anybody else already present the band has been
-  // seen, and a roster per arrival is the chattiness this design exists to
-  // avoid.
-  if (joined && !BotNames::looksLikeBot(username)) {
-    int otherHumans = 0;
-    for (const auto &m : netClient->members())
-      if (m.username != username &&
-          m.username != botName &&
-          !BotNames::looksLikeBot(m.username))
-        ++otherHumans;
-    if (otherHumans == 0) {
-      arrivalDone = false;
-      announcedMe = false;
-      arrivalTimer->start(arrivalDelayMs());
-    }
-  }
+  // Introducing the band to the first person who turns up is the CONDUCTOR's
+  // job now, and so is the rule about only doing it once. A bot that also
+  // announced would be the chorus this design removes.
 
   if (!isOwnerName(username, ownerName))
     return;
@@ -815,10 +647,6 @@ void PracticeBot::onChatMessage(const std::string &rawType,
   // Any message from a bot naming me counts, which is safe because bots do not
   // speak unless spoken to: during the first few seconds of a room there is
   // nothing else a bot could be saying.
-  if (BotNames::looksLikeBandmate(username) &&
-      cwtext::contains(cwtext::lower(text),
-                     cwtext::lower(BotNames::handleOf(botName))))
-    announcedMe = true;
 
   // Another BANDMATE has spoken, so a band-wide line we were about to give has
   // already been given. This is the whole of the arbitration.
@@ -882,8 +710,8 @@ void PracticeBot::onChatMessage(const std::string &rawType,
       pendingBandReply = answer.text;
       heardAnotherBot = false;
       bandReplyTimer->start(answer.act != BotChat::Act::None
-                                ? speakDelayMs()
-                                : speakDelayMs() + kIdleSpeakerPenaltyMs);
+                                ? kBandReplyDelayMs
+                                : kBandReplyDelayMs + kIdleSpeakerPenaltyMs);
     }
     else
       netClient->sendChat(std::string(answer.text));
