@@ -81,16 +81,16 @@ inline const std::vector<std::string> &pool() {
 // It is a role rather than a bandmate, and a role is addressed by what it is:
 // `tutor:` is what anybody would type without being told, and nobody says the
 // word casually in a jam. Matched in the address position only, like `band`.
-inline const char *tutorName() { return "Tutor"; }
+//
+// The `[bot]` is what makes it legible as a bot without making it a BANDMATE --
+// see the two predicates below. `handleOf` reads the part before the bracket,
+// so it is still addressed as `tutor`.
+inline const char *tutorName() { return "Tutor[bot]"; }
 
 // Neither is the conductor, for the same reason and by the same rule: it is a
 // role, `conductor:` is what anybody would type without being told, and nobody
 // says the word casually in a jam.
-//
-// Like the tutor's, this name does NOT satisfy `looksLikeBot` -- no `-bot]`
-// suffix -- which is what keeps it out of `botsPresent`, out of the roster and
-// out of the band's headcount. A conductor is in the room and not in the band.
-inline const char *conductorName() { return "Conductor"; }
+inline const char *conductorName() { return "Conductor[bot]"; }
 
 // The suffix that makes a bot legible as one, to a human reading the mixer and
 // to other bots deciding whether to answer.
@@ -112,12 +112,17 @@ inline std::string handleOf(const std::string &username) {
   return handle;
 }
 
-// True if this username carries the bot marker.
+// Two questions, two suffixes, and the difference between them is the whole
+// reason both exist.
+//
+//   Delvo[bass-bot]   a BANDMATE: a player, with an instrument
+//   Tutor[bot]        a ROLE: one of ours, and not in the band
+//
 // Is this one of the BAND -- a player with an instrument?
 //
-// The `-bot]` suffix, and only that. Used where the question is about the band
-// itself: who is in the roster, and who is ranked against whom. The roles are
-// deliberately excluded; a conductor is in the room and not in the band.
+// `-bot]`, which only an instrument can put there. Asked where the question is
+// about the band itself: who is in the roster, and who is ranked against whom.
+// The roles are excluded, because a conductor is in the room and not in it.
 inline bool looksLikeBandmate(const std::string &username) {
   return username.size() > 5 &&
          username.compare(username.size() - 5, 5, "-bot]") == 0;
@@ -125,20 +130,23 @@ inline bool looksLikeBandmate(const std::string &username) {
 
 // Is this one of OURS at all -- bandmate or role?
 //
-// A different question from the one above, and the difference is the whole
-// reason both exist. Asked where the alternative is A PERSON: how many humans
-// are here, whether the room has emptied, whether an arrival is somebody worth
-// introducing the band to.
+// `[bot]` or `-bot]`, which is the marker with the character that must precede
+// it. Not a bare `bot]`: that would make a human called `robot]` one of ours,
+// which a test here insists on. Asked where the alternative is A PERSON: how
+// many humans are here, whether the room has emptied, whether an arrival is
+// somebody worth introducing the band to.
 //
-// The tutor and the conductor are named for their roles rather than with the
-// `-bot]` suffix, which is right for addressing them and was wrong here: a room
-// with a tutor had every bot counting it as a human, so the roster re-posted
-// when it joined and the band never saw an empty room. That was live for as
-// long as the tutor has existed -- it is on by default at the command line --
-// and stayed hidden because the test fixture turns the tutor off.
+// A SUFFIX rather than a list of role names, so a role invented later is
+// recognised without anybody remembering to come back here. It cost a real bug
+// to learn that this question exists: the roles used to be plain words, so every
+// bot counted the tutor as a human -- the roster re-posted when it joined and
+// the band never saw an empty room. That was live for as long as the tutor has
+// been, and the tutor is on by default at the command line; it stayed hidden
+// because the test fixture turns the tutor off.
 inline bool looksLikeBot(const std::string &username) {
-  return looksLikeBandmate(username) || username == tutorName() ||
-         username == conductorName();
+  return looksLikeBandmate(username) ||
+         (username.size() > 5 &&
+          username.compare(username.size() - 5, 5, "[bot]") == 0);
 }
 
 // Pick `count` names, skipping any that collide with somebody already in the

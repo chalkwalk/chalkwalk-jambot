@@ -145,6 +145,38 @@ public:
       expectEquals((int)band.size(), 4, "a full room got no band at all");
     }
 
+    beginTest("a role is a bot but not a bandmate");
+    {
+      // The two questions the suffixes answer, and the reason there are two.
+      // A role bot is one of ours -- not a person -- so it must not be counted
+      // as a human, and it is not in the band, so it must not be ranked or
+      // listed in the roster.
+      const std::string player = BotNames::usernameFor("Delvo", "bass");
+      expect(BotNames::looksLikeBot(player), "a player is a bot");
+      expect(BotNames::looksLikeBandmate(player), "a player is a bandmate");
+
+      for (const auto *role : {BotNames::tutorName(), BotNames::conductorName()}) {
+        expect(BotNames::looksLikeBot(role),
+               "a role is not a person, and counting it as one re-posts the "
+               "roster and stops the band ever seeing an empty room");
+        expect(!BotNames::looksLikeBandmate(role),
+               "a role is in the room and not in the band");
+      }
+
+      // A human is neither, however they are called.
+      expect(!BotNames::looksLikeBot("you"));
+      expect(!BotNames::looksLikeBot("robot]"), "not every 'bot]' is ours");
+    }
+
+    beginTest("a role is addressed by what it is");
+    {
+      // The bracket carries the marker; the handle is what you type.
+      expectEquals(juce::String(BotNames::handleOf(BotNames::tutorName())),
+                   juce::String("tutor"));
+      expectEquals(juce::String(BotNames::handleOf(BotNames::conductorName())),
+                   juce::String("conductor"));
+    }
+
     beginTest("the tutor is a role, not a bandmate");
     {
       // It is addressed by what it is, so it must not turn up in the pool and
