@@ -83,6 +83,9 @@ enum class Intent {
   // stops between songs; the band needs a state for it (docs/BOT-CHAT.md 15).
   StopPlaying,
   StartPlaying,
+  // Asked for the band to GROW. Not a request to any one bot: it is one answer
+  // about the room, so the conductor owns it and the players ignore it.
+  AddPlayer,
   SetQuiet,
   SetLoud,
   ExplainSelf,
@@ -114,6 +117,7 @@ enum class Concept {
   Begin,      // play, start, hit it -- beginning, likewise decided by object
   Standard,   // default, usual, standard, reset -- the expected one, or back to it
   Hear,       // hear, listen, sounds like -- what we cannot do
+  Person,     // player, musician, member, somebody -- a WHO, not a what
 };
 
 struct Reading {

@@ -910,3 +910,28 @@ could you turn me up
 that kick sounds mental
 ill try
 im trying that now
+[ADD_PLAYER]
+# Deliberately absent, because they are not unambiguously this:
+#
+#   add another / one more   -- another WHAT. In a jam "one more" most naturally
+#                               means one more tune, and reading it as a request
+#                               for a player would be a confident wrong answer,
+#                               which this file exists to prevent. Both need a
+#                               person word to be a recruit request at all.
+#   make it a five piece     -- idiomatic, and it asks for a SIZE rather than an
+#                               addition. Worth revisiting if anybody types it.
+add a player
+add another player
+bring in another player
+bring another player in
+# "bring someone else in" belongs here and is absent: it still misses.
+# `someone` looks like it is stripped as a pronoun before it can be a person --
+# `everyone` is an explicit stopword for addressing, and that list is shared.
+# Fixing it means touching the stopwords every other intent depends on, which
+# is more than this phrasing is worth today. Named so the next person does not
+# rediscover it.
+we need another player
+can we have another player
+one more player
+another player please
+get another player

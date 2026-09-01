@@ -119,6 +119,10 @@ public:
       // live defect, and each named a lexicon entry one or two edits away.
       const struct { const char *text; const char *notThis; } kReal[] = {
           {"stop chatting", "REPORT_CHART"},  // chat -> chart
+          {"wat r u playin", "ADD_PLAYER"},   // playin -> player
+          {"i cant remember the chords", "ADD_PLAYER"}, // member -> player
+          {"play another one", "ADD_PLAYER"}, // another is not always a who
+          {"give me another chord", "ADD_PLAYER"},
           {"leave the room", "REPORT_KEY"},   // room -> root
           {"oops", "REPORT_CHART"},           // oops -> loop
           {"what are you playing right now", "DESCRIBE_SOUND"}, // right -> bright

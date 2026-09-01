@@ -283,7 +283,20 @@ Prepared prepare(const std::string &text) {
         }
 
   // "what are we in" is the key, the same way "what are we playing in" is.
-  if (tokens.size() >= 2 && tokens.back() == "in")
+  //
+  // Only when ASKED. A trailing `in` is a key question at the end of a
+  // question and a particle at the end of an instruction -- "bring someone
+  // else in" was becoming "bring someone else key", which read as a key
+  // change and is the worst kind of miss: it looks like an answer and ignores
+  // what was asked.
+  const bool asking =
+      !tokens.empty() &&
+      (tokens.front() == "what" || tokens.front() == "whats" ||
+       tokens.front() == "which" || tokens.front() == "whos" ||
+       tokens.front() == "who" || tokens.front() == "are" ||
+       tokens.front() == "is" || tokens.front() == "tell" ||
+       tokens.front() == "remind");
+  if (asking && tokens.size() >= 2 && tokens.back() == "in")
     tokens.back() = "key";
 
   // "whats going on" asks about the part; "whats going on here" asks what this
@@ -450,6 +463,11 @@ const Word kLexicon[] = {
     {"groove", Concept::Part},    {"figur", Concept::Part},
     {"rhythm", Concept::Part},    {"line", Concept::Part},
     {"beat", Concept::Part},      {"play", Concept::Part},
+    // Colloquial, and it does not stem: "playin" has no "ing" to chop, so it
+    // reaches typo repair -- where "player" is now a neighbour and was winning.
+    // Adding the intent's vocabulary gave an existing typo a nearer word, which
+    // is the hazard the repair guards above exist for.
+    {"playin", Concept::Part},
     {"doing", Concept::Part},     {"perform", Concept::Part},
     {"accent", Concept::Part},    {"fill", Concept::Part},
     {"note", Concept::Part},      {"shape", Concept::Part},
@@ -503,6 +521,13 @@ const Word kLexicon[] = {
     {"reset", Concept::Standard},   {"revert", Concept::Standard},
     {"restor", Concept::Standard},
 
+    {"player", Concept::Person},  {"players", Concept::Person},
+    {"musician", Concept::Person},
+    {"somebody", Concept::Person}, {"someone", Concept::Person},
+    // NOT "member": the lexicon matches stems, and "member" is inside
+    // "remember" -- which turned "i cant remember the chords" into a request
+    // for another player. Not worth the one phrasing it would buy.
+    {"piece", Concept::Person},
     {"shake", Concept::Change},   {"reroll", Concept::Change},
     {"roll", Concept::Change},    {"new", Concept::Change},
     {"differ", Concept::Change},  {"different", Concept::Change},
@@ -714,6 +739,7 @@ const char *intentName(Intent i) {
   case Intent::Reshuffle: return "RESHUFFLE";
   case Intent::StopPlaying: return "STOP_PLAYING";
   case Intent::StartPlaying: return "START_PLAYING";
+  case Intent::AddPlayer: return "ADD_PLAYER";
   case Intent::SetQuiet: return "SET_QUIET";
   case Intent::SetLoud: return "SET_LOUD";
   case Intent::ExplainSelf: return "EXPLAIN_SELF";
@@ -1094,6 +1120,19 @@ Reading read(const std::string &text) {
   if (weight.count(Concept::Chart)) add(Intent::ReportChart, 7);
   if (weight.count(Concept::Tempo)) add(Intent::ReportTempo, 7);
   if (weight.count(Concept::Change)) add(Intent::Reshuffle, 5);
+
+  // A WHO rather than a what. "another player" and "another groove" share the
+  // word that carries the asking -- `another` is Change, which is why this
+  // scored as a reshuffle before the concept existed -- and what separates them
+  // is that one of them names a person.
+  //
+  // Weighted above Reshuffle rather than merely beside it: with both concepts
+  // present the request is unambiguous, and leaving them level would make the
+  // answer depend on which rule ran last.
+  if (weight.count(Concept::Person)) {
+    add(Intent::AddPlayer, 9);
+    score[Intent::Reshuffle] -= 6;
+  }
 
   // Asked to CHANGE the key or the tempo rather than to report it.
   //
