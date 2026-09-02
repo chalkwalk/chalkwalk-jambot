@@ -689,6 +689,21 @@ One primitive, four uses: the arrival roster, the tempo vote, the key-change
 acknowledgement, and this. That is the strongest argument that it is the right
 primitive.
 
+> **SUPERSEDED, 2026-09-01: there is no primitive, and there are no uses.**
+> Both built uses are the CONDUCTOR's now -- it says the roster and it confirms
+> a band command -- and the other two were never built. A single speaker needs
+> no tiebreak, so `speakDelayMs`, `rankAmong`, `heardAnotherBot` and the rest
+> are deleted rather than shared.
+>
+> The reasoning below is kept because it was right about the hard part. The
+> idle penalty in particular: with the band half stopped, a silent bot
+> answering "already stopped" would tell the room nothing was happening while
+> three bots ended the tune, and a delay was the only way four peers could
+> express that. The conductor holds the same fact instead of racing for it.
+>
+> **The tempo vote is NOT superseded by this.** See the section below: the
+> problem there is the denominator, not who speaks, and it is unresolved.
+
 ### Voting, and why four bots nearly break it
 
 A NINJAM tempo change is a server vote, and the threshold is a proportion of
