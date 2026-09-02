@@ -244,10 +244,18 @@ void Conductor::commandBand(BandControl &band, BotLanguage::Intent intent) {
     // resolving that it is wrapping up -- a second ending announced over the
     // first, one interval before silence.
     if (anyIn(BandPlayState::State::Playing)) {
+      // Said BEFORE commanding, and the order matters. Commanding takes the
+      // host's lock, which the render thread holds for as long as a render --
+      // seconds, with four bots -- so speaking afterwards puts the line behind
+      // it, and a room hears the band end before it is told the band is ending.
+      //
+      // Safe in this direction because neither of these commands can fail: the
+      // line states an intention the host has no way to refuse.
+      say("we're wrapping it up -- ending on the downbeat after this one.");
+
       // From the NEXT interval: an ending is musical, and the head of an
       // interval is where a band can begin one together.
       band.command(BotChat::Act::StopPlaying, band.currentInterval() + 1);
-      say("we're wrapping it up -- ending on the downbeat after this one.");
       return;
     }
     if (anyIn(BandPlayState::State::Wrapping) ||
@@ -264,10 +272,12 @@ void Conductor::commandBand(BandControl &band, BotLanguage::Intent intent) {
     return;
   }
 
+  // Said first, for the reason above.
+  say("we're coming in on the next interval.");
+
   // From the interval being played. There is nothing musical in the gap before
   // the next one, so waiting for it is an interval of silence for nothing.
   band.command(BotChat::Act::StartPlaying, band.currentInterval());
-  say("we're coming in on the next interval.");
 }
 
 void Conductor::onArrivalDue() {

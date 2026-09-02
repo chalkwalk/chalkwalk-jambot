@@ -13,7 +13,6 @@ namespace {
 // How much longer a bot with nothing to do waits before speaking for the band.
 // Comfortably past the whole of the acting bots' spread, so any bot that
 // actually did something wins.
-constexpr int kIdleSpeakerPenaltyMs = 700;
 
 // One place, so the help line and the parser cannot drift apart.
 // "part" is deliberately absent, and so are "stop" and bare "go" -- see
@@ -35,7 +34,6 @@ PracticeBot::PracticeBot(std::string name, std::vector<std::string> channelNames
   netClient->setDefaultRecvEnabled(false);
   netClient->addListener(this);
 
-  bandReplyTimer = netClient->createTimer([this] { onBandReplyDue(); });
   graceTimer = netClient->createTimer([this] { onGraceExpired(); });
 }
 
@@ -155,7 +153,6 @@ void PracticeBot::part() {
   // Idempotent, and terminal: see onDisconnected for why there is no rejoin.
   if (!active.exchange(false))
     return;
-  bandReplyTimer->stop();
   graceTimer->stop();
   netClient->disconnect();
 }
@@ -390,54 +387,7 @@ std::string PracticeBot::helpLine(const std::string &name) {
 }
 
 
-
-void PracticeBot::onBandReplyDue() {
-  // Somebody got there first, so the room already has its answer. Saying it
-  // again is the chorus this exists to prevent.
-  if (heardAnotherBot || pendingBandReply.empty())
-    return;
-  if (chatMuted.load())
-    return;
-  netClient->sendChat(pendingBandReply);
-}
-
 void PracticeBot::onGraceExpired() { part(); }
-
-namespace {
-
-// Where a bot sits in the room's sorted bot list, and what to do when it is not
-// in it at all. An unlisted bot goes LAST rather than first, so it does not
-// land on top of whoever holds rank 0.
-int rankAmong(const std::string &botName,
-              const std::vector<std::string> &botsPresent) {
-  std::vector<std::string> ranked = botsPresent;
-  std::sort(ranked.begin(), ranked.end(), [](const auto &a, const auto &b) {
-    return cwtext::lower(a) < cwtext::lower(b);
-  });
-  const auto at = std::find(ranked.begin(), ranked.end(), botName);
-  if (at == ranked.end())
-    return (int)ranked.size();
-  return (int)std::distance(ranked.begin(), at);
-}
-
-} // namespace
-
-std::vector<std::string> PracticeBot::botsPresent() const {
-  std::vector<std::string> out;
-  out.push_back(botName);
-  for (const auto &m : netClient->members())
-    if (m.username != botName && BotNames::looksLikeBandmate(m.username))
-      out.push_back(m.username);
-  std::sort(out.begin(), out.end(), [](const auto &a, const auto &b) {
-    return cwtext::lower(a) < cwtext::lower(b);
-  });
-  return out;
-}
-
-int PracticeBot::speakDelayMs(const std::string &botName,
-                              const std::vector<std::string> &botsPresent) {
-  return 220 + rankAmong(botName, botsPresent) * kSpeakStaggerMs;
-}
 
 // The owner as the ROOM sees them. An anonymous NINJAM login arrives as
 // `anonymous:nick`, so comparing against the bare nickname never matched and
@@ -684,14 +634,6 @@ void PracticeBot::onChatMessage(const std::string &rawType,
   // speak unless spoken to: during the first few seconds of a room there is
   // nothing else a bot could be saying.
 
-  // Another BANDMATE has spoken, so a band-wide line we were about to give has
-  // already been given. This is the whole of the arbitration.
-  //
-  // Deliberately not the roles: a tutor's greeting is not the band's roster,
-  // and counting it as one would silence the band because somebody said hello.
-  if (BotNames::looksLikeBandmate(username))
-    heardAnotherBot = true;
-
   const bool isPrivate = (type == "PRIVMSG");
 
   // The structured instructions are shouted, and take no address at all.
@@ -732,23 +674,16 @@ void PracticeBot::onChatMessage(const std::string &rawType,
     if (answer.privately)
       netClient->sendPrivate(username, answer.text);
     else if (answer.forBand)
-      // Acting is collective and speaking is arbitrated: the action below
-      // happens in every addressed bot, and only the LINE about it is rationed.
+      // NOT SAID. Acting is still collective -- the switch below runs in every
+      // addressed bot -- but the LINE about it is the conductor's now, because
+      // it is one fact about the band, and four bots saying it was a chorus
+      // arbitrated by a timer.
       //
-      // A bot that ACTED speaks ahead of one that had nothing to do. With the
-      // band half stopped, "band stop" makes the playing ones wrap up and
-      // leaves the silent ones with "already stopped" -- and whoever won a
-      // flat race would answer for everybody. That is not merely noisy, it is
-      // wrong: the room would be told nothing was happening while three bots
-      // ended the tune. If nobody acted, the deferred line is the right answer
-      // and it still gets said.
-    {
-      pendingBandReply = answer.text;
-      heardAnotherBot = false;
-      bandReplyTimer->start(answer.act != BotChat::Act::None
-                                ? speakDelayMs()
-                                : speakDelayMs() + kIdleSpeakerPenaltyMs);
-    }
+      // The conductor can say it truthfully in a way none of these could: it
+      // ISSUES the command, so it knows whether the band was playing, ending or
+      // already silent. That is what the rank stagger and the idle penalty were
+      // approximating, and both are gone with this branch.
+      ;
     else
       netClient->sendChat(std::string(answer.text));
   }
@@ -778,10 +713,22 @@ void PracticeBot::onChatMessage(const std::string &rawType,
     return;
   }
   case BotChat::Act::StartPlaying:
-    startPlaying();
-    return;
   case BotChat::Act::StopPlaying:
-    stopPlaying();
+    // A BAND-wide play or stop is the conductor's: it reads the band, decides
+    // which interval the change lands on, and commands everybody together.
+    // Acting here as well would make two actors for one command -- and the
+    // conductor's reading of the band would race the bots acting on the same
+    // chat line, which is exactly how it came to answer "already playing" to
+    // the message that started the band.
+    //
+    // Addressed to ME, it is still mine. "Ravo: stop" is one player leaving the
+    // tune, which is a different thing from the band ending one.
+    if (!answer.forBand) {
+      if (answer.act == BotChat::Act::StartPlaying)
+        startPlaying();
+      else
+        stopPlaying();
+    }
     return;
   case BotChat::Act::SetChatMuted:
     chatMuted.store(answer.value != 0);

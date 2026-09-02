@@ -147,30 +147,6 @@ public:
   static bool isPartCommand(const std::string &text);
   static std::string helpLine(const std::string &botName);
 
-  // The gap between one bot waking and the next. It has to outlast a line
-  // crossing the server and coming back -- loopback is immediate, a real
-  // server is tens of milliseconds, a loaded machine is worse -- and still
-  // read as an answer rather than a pause.
-  static constexpr int kSpeakStaggerMs = 400;
-
-  // How long a bot waits before confirming a COMMAND for the band.
-  //
-  // STILL RANKED, and that is not an oversight. The arrival roster has gone to
-  // the conductor and taken its stagger with it, but a command confirmation is
-  // still four peers who might each answer -- so it still needs a guaranteed
-  // minimum separation, for the reason the roster did: a hash modulo put two
-  // bots 32ms apart and both spoke.
-  //
-  // A flat delay here makes every acting bot wake at once, so none of them sees
-  // another's line before speaking and the whole arbitration stops working. It
-  // was tried, and the band answered a `band stop` three times.
-  //
-  // This goes when the conductor OWNS commands and can state the fact itself --
-  // it will know whether the band wrapped up or was already stopped because it
-  // issued the stop. Until then the mechanism stays, race and all.
-  static int speakDelayMs(const std::string &botName,
-                          const std::vector<std::string> &botsPresent);
-
 private:
   void onConnected() override;
   void onDisconnected(const std::string &reason) override;
@@ -215,9 +191,6 @@ private:
   // be quiet, and then the room gets silence where it asked a question. Nobody
   // coordinates and nothing is shared -- each bot waits its own interval and
   // drops the line if it hears one.
-  void onBandReplyDue();
-  std::string pendingBandReply;
-  bool heardAnotherBot = false;
 
   // Counting down to leaving, because the owner is not here.
   //
@@ -228,7 +201,6 @@ private:
 
   // All three fire on the thread the client delivers callbacks on, which is
   // what lets them read and write the state above without a lock.
-  std::unique_ptr<BotClient::Timer> bandReplyTimer;
   std::unique_ptr<BotClient::Timer> graceTimer;
 
   int graceMs = 3 * 60 * 1000;
@@ -244,8 +216,6 @@ private:
 
   // Every bot in the room right now, sorted so that every bot computes the
   // same list and therefore agrees about who speaks.
-  std::vector<std::string> botsPresent() const;
-  int speakDelayMs() const { return speakDelayMs(botName, botsPresent()); }
 
   std::string botName;
   // What was passed in at construction. A bot in a band overrides this from
