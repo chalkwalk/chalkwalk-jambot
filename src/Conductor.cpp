@@ -172,7 +172,22 @@ void Conductor::onChatMessage(const std::string &type,
     return;
 
   const auto rest = BotAddress::withoutAddress(room, botName, text);
-  if (BotLanguage::read(rest).intent != BotLanguage::Intent::AddPlayer)
+  const auto intent = BotLanguage::read(rest).intent;
+
+  if (intent == BotLanguage::Intent::StopPlaying ||
+      intent == BotLanguage::Intent::StartPlaying) {
+    BandControl *band = nullptr;
+    {
+      std::lock_guard<std::mutex> sl(stateMutex);
+      band = control;
+    }
+    if (band == nullptr)
+      return;
+    commandBand(*band, intent);
+    return;
+  }
+
+  if (intent != BotLanguage::Intent::AddPlayer)
     return;
 
   // Who was here BEFORE asking, so that whoever is here afterwards and was not
@@ -208,6 +223,51 @@ void Conductor::onChatMessage(const std::string &type,
                        : "bringing " + newest + " in.");
   } else
     say("that is as many of us as this room takes.");
+}
+
+// One fact about the band, said once.
+//
+// The wording is the band's own, kept verbatim: a player reads the same line
+// whichever bot says it, and these were written for the room rather than for
+// the code that used to hold them.
+void Conductor::commandBand(BandControl &band, BotLanguage::Intent intent) {
+  const auto now = band.phases();
+
+  const auto anyIn = [&now](BandPlayState::State want) {
+    return std::any_of(now.begin(), now.end(),
+                       [want](BandPlayState::State s) { return s == want; });
+  };
+
+  if (intent == BotLanguage::Intent::StopPlaying) {
+    // Three states, not two. `audible()` covers the two ending states as well
+    // as Playing, so asking "is anybody audible" would tell a band already
+    // resolving that it is wrapping up -- a second ending announced over the
+    // first, one interval before silence.
+    if (anyIn(BandPlayState::State::Playing)) {
+      // From the NEXT interval: an ending is musical, and the head of an
+      // interval is where a band can begin one together.
+      band.command(BotChat::Act::StopPlaying, band.currentInterval() + 1);
+      say("we're wrapping it up -- ending on the downbeat after this one.");
+      return;
+    }
+    if (anyIn(BandPlayState::State::Wrapping) ||
+        anyIn(BandPlayState::State::Resolving)) {
+      say("already bringing it to an end.");
+      return;
+    }
+    say("already stopped. say \"band play\" when you want us back in.");
+    return;
+  }
+
+  if (anyIn(BandPlayState::State::Playing)) {
+    say("already playing.");
+    return;
+  }
+
+  // From the interval being played. There is nothing musical in the gap before
+  // the next one, so waiting for it is an interval of silence for nothing.
+  band.command(BotChat::Act::StartPlaying, band.currentInterval());
+  say("we're coming in on the next interval.");
 }
 
 void Conductor::onArrivalDue() {

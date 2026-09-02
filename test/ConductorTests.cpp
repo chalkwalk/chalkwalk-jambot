@@ -290,6 +290,94 @@ public:
              "a bot asked for a player and the conductor obliged");
     }
 
+    beginTest("a stop is one line about the band, not four");
+    {
+      Rig rig;
+      rig.control.state = {BandPlayState::State::Playing,
+                           BandPlayState::State::Playing,
+                           BandPlayState::State::Silent};
+      rig.control.interval = 7;
+      rig.client->joins("you");
+      const auto before = rig.client->said.size();
+      rig.client->say("you", "band, stop");
+
+      expect(rig.control.commands.size() == 1, "the band was not commanded");
+      expect(rig.control.commands.front().act == BotChat::Act::StopPlaying);
+      expect(rig.control.commands.front().atInterval == 8,
+             "a stop takes effect from the NEXT interval, not this one");
+
+      expect(rig.client->said.size() == before + 1,
+             "a stop got more or fewer than one answer");
+      expect(rig.client->said.back().find("wrapping") != std::string::npos,
+             "somebody was playing and the band did not say it was ending: " +
+                 rig.client->said.back());
+    }
+
+    beginTest("a half-stopped band is still wrapping up");
+    {
+      // The case the idle penalty existed for: with some bots playing and some
+      // silent, "already stopped" would tell the room nothing was happening
+      // while the rest ended the tune. The conductor states one fact, and the
+      // fact is that the band is stopping.
+      Rig rig;
+      rig.control.state = {BandPlayState::State::Silent,
+                           BandPlayState::State::Playing};
+      rig.client->joins("you");
+      rig.client->say("you", "band, stop");
+
+      expect(rig.client->said.back().find("wrapping") != std::string::npos,
+             rig.client->said.back());
+    }
+
+    beginTest("a band already ending is not told it is ending");
+    {
+      // Three states, not two. `audible()` covers Wrapping and Resolving as
+      // well as Playing, so a band mid-ending would be told it is "wrapping it
+      // up" -- a second ending announced over the first, and Resolving is one
+      // interval from silence.
+      Rig rig;
+      rig.control.state = {BandPlayState::State::Wrapping,
+                           BandPlayState::State::Resolving};
+      rig.client->joins("you");
+      rig.client->say("you", "band, stop");
+
+      expect(rig.client->said.back().find("already bringing") !=
+                 std::string::npos,
+             rig.client->said.back());
+      expect(rig.control.commands.empty(),
+             "an ending already under way was started again");
+    }
+
+    beginTest("a band that is already silent says so");
+    {
+      Rig rig;
+      rig.control.state = {BandPlayState::State::Silent,
+                           BandPlayState::State::Silent};
+      rig.client->joins("you");
+      rig.client->say("you", "band, stop");
+
+      expect(rig.client->said.back().find("already stopped") !=
+                 std::string::npos,
+             rig.client->said.back());
+      expect(rig.control.commands.empty(),
+             "a silent band was commanded to stop again");
+    }
+
+    beginTest("a start takes effect from the interval being played");
+    {
+      Rig rig;
+      rig.control.state = {BandPlayState::State::Silent};
+      rig.control.interval = 4;
+      rig.client->joins("you");
+      rig.client->say("you", "band, play");
+
+      expect(rig.control.commands.size() == 1);
+      expect(rig.control.commands.front().act == BotChat::Act::StartPlaying);
+      expect(rig.control.commands.front().atInterval == 4,
+             "a start waited for the next interval, which is a bar of silence "
+             "for no musical reason");
+    }
+
     beginTest("knows its own name and its owner");
     {
       Rig rig;

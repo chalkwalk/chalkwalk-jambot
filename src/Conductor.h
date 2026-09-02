@@ -2,6 +2,7 @@
 
 #include "BandControl.h"
 #include "BotAddress.h"
+#include "BotLanguage.h"
 #include "BotClient.h"
 
 #include <atomic>
@@ -81,6 +82,9 @@ protected:
 
   // A player as the room should hear them named: "vurn (horn)".
   static std::string describe(const std::string &username);
+
+  // Acts on a band-wide play or stop, and says the one thing about it.
+  void commandBand(BandControl &band, BotLanguage::Intent intent);
 
 private:
   void onRoomMembershipChange(const std::string &username,
