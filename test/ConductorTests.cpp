@@ -1,5 +1,6 @@
 #include "../src/Conductor.h"
 #include "../src/TutorBot.h"
+#include "FakeBandControl.h"
 #include "FakeBotClient.h"
 #include "JuceUnitShim.h"
 
@@ -14,16 +15,19 @@
 
 namespace {
 
+using jambot::test::FakeBandControl;
 using jambot::test::FakeClient;
 
 struct Rig {
   FakeClient *client = nullptr;
+  FakeBandControl control;
   std::unique_ptr<Conductor> conductor;
 
   Rig() {
     auto owned = std::make_unique<FakeClient>();
     client = owned.get();
     conductor = std::make_unique<Conductor>("Vell[bot]", std::move(owned));
+    conductor->setControl(&control);
     conductor->join("127.0.0.1", 2049, 48000.0);
   }
 };
@@ -212,12 +216,10 @@ public:
     beginTest("asked for another player, it asks the room");
     {
       Rig rig;
-      int asked = 0;
-      rig.conductor->setRecruit([&] { ++asked; return true; });
       rig.client->joins("you");
       rig.client->say("you", "band, add a player");
 
-      expect(asked == 1, "the conductor did not ask the room");
+      expect(rig.control.added == 1, "the conductor did not ask the room");
       expect(!rig.client->said.empty(), "it said nothing about it");
     }
 
@@ -229,13 +231,10 @@ public:
       // line that says who just arrived.
       Rig rig;
       rig.client->joins("you");
-      rig.conductor->setRecruit([&] {
-        // Whoever hosts the room adds the player, so by the time the callback
-        // returns the newcomer is in the room. The conductor reads the room
-        // rather than being told a name.
-        rig.client->joins("Vurn[horn-bot]");
-        return true;
-      });
+      // Whoever hosts the room adds the player, so by the time the call
+      // returns the newcomer is in the room. The conductor reads the room
+      // rather than being told a name.
+      rig.control.onAdd = [&] { rig.client->joins("Vurn[horn-bot]"); };
       rig.client->say("you", "band, add a player");
 
       expect(!rig.client->said.empty());
@@ -248,7 +247,7 @@ public:
     beginTest("a refusal is a rule speaking, not silence");
     {
       Rig rig;
-      rig.conductor->setRecruit([&] { return false; });
+      rig.control.allowGrowth = false;
       rig.client->joins("you");
       const auto before = rig.client->said.size();
       rig.client->say("you", "band, add a player");
@@ -263,12 +262,10 @@ public:
     beginTest("an unaddressed request is not one");
     {
       Rig rig;
-      int asked = 0;
-      rig.conductor->setRecruit([&] { ++asked; return true; });
       rig.client->joins("you");
       rig.client->say("you", "add a player");
 
-      expect(asked == 0,
+      expect(rig.control.added == 0,
              "nobody is addressed by default, and a conductor is not an "
              "exception to that");
     }
@@ -286,12 +283,11 @@ public:
       // not change this result, which is how it was found to be duplication
       // rather than defence.
       Rig rig;
-      int asked = 0;
-      rig.conductor->setRecruit([&] { ++asked; return true; });
       rig.client->joins("Quado[kit-bot]");
       rig.client->say("Quado[kit-bot]", "band, add a player");
 
-      expect(asked == 0, "a bot asked for a player and the conductor obliged");
+      expect(rig.control.added == 0,
+             "a bot asked for a player and the conductor obliged");
     }
 
     beginTest("knows its own name and its owner");

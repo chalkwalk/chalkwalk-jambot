@@ -123,9 +123,9 @@ std::string Conductor::describe(const std::string &username) {
   return instrument.empty() ? handle : handle + " (" + instrument + ")";
 }
 
-void Conductor::setRecruit(Recruit r) {
+void Conductor::setControl(BandControl *c) {
   std::lock_guard<std::mutex> sl(stateMutex);
-  recruit = std::move(r);
+  control = c;
 }
 
 void Conductor::onChatMessage(const std::string &type,
@@ -182,15 +182,15 @@ void Conductor::onChatMessage(const std::string &type,
   for (const auto &m : netClient->members())
     seen.insert(m.username);
 
-  Recruit ask;
+  BandControl *host = nullptr;
   {
     std::lock_guard<std::mutex> sl(stateMutex);
-    ask = recruit;
+    host = control;
   }
-  if (!ask)
+  if (host == nullptr)
     return;
 
-  if (ask()) {
+  if (host->addPlayer()) {
     // Named, not merely acknowledged. A band that gains a player without a word
     // reads as a process starting, which is what the roster exists to prevent.
     // The roster is not re-posted -- everybody has met the others already -- so

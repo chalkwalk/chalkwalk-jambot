@@ -1,5 +1,6 @@
 #pragma once
 
+#include "BandControl.h"
 #include "BotAddress.h"
 #include "BotClient.h"
 
@@ -51,14 +52,9 @@ public:
   // list of names.
   void setBandName(std::string name);
 
-  // Asks for one more player. Returns true if one was added.
-  //
-  // A callback rather than an interface, because the only thing this library
-  // needs to know is whether it worked. The cap, the naming and the arranging
-  // order all belong to whoever hosts the room, and a conductor that knew about
-  // them would be a second place they could be got wrong.
-  using Recruit = std::function<bool()>;
-  void setRecruit(Recruit r);
+  // Whoever hosts the room. NOT owned, and it must outlive this conductor --
+  // the host creates both and destroys the conductor first.
+  void setControl(BandControl *c);
 
   // Long enough for the join notices to finish scrolling before the one line
   // anybody is meant to read.
@@ -103,7 +99,7 @@ private:
   std::string bandName;
   double rate = 0.0;
 
-  Recruit recruit;
+  BandControl *control = nullptr;
   BotAddress::Attention attention;
 
   std::unique_ptr<BotClient::Timer> arrivalTimer;
