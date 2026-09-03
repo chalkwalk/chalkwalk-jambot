@@ -802,6 +802,27 @@ does:
    The earlier draft reported this sweep as "identical at every `H`, with no
    divergences at all". That was measured against the wrong thing.
 
+   **The same rule, arrived at from the other end.** A proposal worth recording,
+   because it is the clearest way to see why this gate is the right one: let the
+   band vote once the shortfall is at most the band's own share of the
+   threshold, `M - N <= ceil(B / 2)`. It needs no human count at all, which is
+   its attraction.
+
+   It fails, and instructively. `ceil(B / 2)` is the band's share only when the
+   threshold is 50% *and* `B` is even; at odd `B` it over-counts by half a vote
+   and the band carries changes a **minority** of humans wanted -- 1 human of 3,
+   2 of 5, 3 of 7, at every odd band size and both common thresholds. A band
+   loses a member the moment the tutor parts, so odd `B` is a designed event,
+   not an edge case. Above 50% the same rule drifts the other way and refuses to
+   help: 32 such cases at 75%, 40 at 100%.
+
+   But write the band's share exactly instead of approximating it as `B / 2`
+   -- it is `M - neededAlone`, by definition -- and the rule becomes
+   `N >= M - (M - neededAlone)`, which is `N >= neededAlone`. The proposal is
+   this gate with the arithmetic rounded off. That is the argument for it in one
+   line: the band tops up its own share of a threshold it inflated, and nothing
+   else.
+
    **What is not free is the threshold**, which appears in no message. It can be
    bracketed -- `M` and `vucnt` are both known, so it lies in a narrow range --
    but one vote line pins `neededAlone` only about half the time (swept over
