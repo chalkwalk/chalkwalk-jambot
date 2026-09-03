@@ -701,8 +701,9 @@ primitive.
 > three bots ended the tune, and a delay was the only way four peers could
 > express that. The conductor holds the same fact instead of racing for it.
 >
-> **The tempo vote is NOT superseded by this.** See the section below: the
-> problem there is the denominator, not who speaks, and it is unresolved.
+> **The tempo vote's RULE is not superseded by this** -- the problem there is
+> the denominator, not who speaks, and the gate stands as written. Its point 4,
+> the staggered casting, is superseded; see the note there.
 
 ### Voting, and why four bots nearly break it
 
@@ -773,6 +774,18 @@ has not voted yet from one who never will.
    made necessary and then stops, with no ranking between the bots and no
    message passing: whichever bot wakes to find the job done simply stays out of
    it. It also keeps four `!vote` lines from landing in the chat at once.
+
+   > **SUPERSEDED, 2026-09-02: the conductor counts instead.** This point is
+   > the last use of the delay-and-watch primitive, and it goes the way the
+   > others did. The vote line gives `N/M`, so at the moment the gate trips the
+   > shortfall is `needed = M - N`: the conductor votes and commands
+   > `needed - 1` members to vote with it, in roster order. Same outcome --
+   > exactly the votes the band's presence made necessary -- without the timer,
+   > the spread or the race. Where `needed` exceeds the band, it casts nothing
+   > and says so, because votes that cannot carry are noise that expires.
+   >
+   > Points 1, 2, 3 and 5 are untouched. What is superseded is who casts and
+   > when, never whether the band should.
 5. **A change of leading candidate resets everything** -- the gate reopens and
    the timers are dropped. The band's support is for a value, not for the idea
    of changing.
