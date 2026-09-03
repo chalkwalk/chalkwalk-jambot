@@ -847,7 +847,8 @@ does:
    message passing: whichever bot wakes to find the job done simply stays out of
    it. It also keeps four `!vote` lines from landing in the chat at once.
 
-   > **SUPERSEDED, 2026-09-02: the conductor counts instead.** This point is
+   > **SUPERSEDED, 2026-09-02; BUILT, 2026-09-03: the conductor counts
+   > instead.** This point is
    > the last use of the delay-and-watch primitive, and it goes the way the
    > others did. The vote line gives `N/M`, so at the moment the gate trips the
    > shortfall is `needed = M - N`: the conductor votes and commands
@@ -858,6 +859,14 @@ does:
    >
    > Points 1, 2, 3 and 5 are untouched. What is superseded is who casts and
    > when, never whether the band should.
+   >
+   > `Conductor::considerVote` is the whole of it, and two things fell out of
+   > writing it. The vote lines the band's own votes provoke come back to it,
+   > so it **latches** what it is behind -- without that it answers itself,
+   > forever. And the line arrives with an **empty username**, so it is read
+   > before the addressing scan: it is not addressed to anybody, and a
+   > conductor that ran it through `BotAddress` would be answering the server
+   > in words.
 5. **A change of leading candidate resets everything** -- the gate reopens and
    the timers are dropped. The band's support is for a value, not for the idea
    of changing.

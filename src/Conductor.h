@@ -5,6 +5,8 @@
 #include "BotLanguage.h"
 #include "BotClient.h"
 
+#include <chalkwalk/ninjam/Voting.h>
+
 #include <atomic>
 #include <functional>
 #include <memory>
@@ -87,6 +89,10 @@ protected:
   void commandBand(BandControl &band, BotLanguage::Intent intent);
 
 private:
+  // A line from the server's voting system. Returns true if it was one, in
+  // which case it is not chat and nothing else looks at it.
+  bool considerVote(const std::string &text);
+
   void onRoomMembershipChange(const std::string &username,
                               bool joined) override;
   void onChatMessage(const std::string &type, const std::string &username,
@@ -105,6 +111,16 @@ private:
 
   BandControl *control = nullptr;
   BotAddress::Attention attention;
+
+  // What the band is already behind, so a vote is cast once. Every vote the
+  // band casts produces another line from the server, and without this the
+  // conductor would answer its own vote with another one.
+  struct Backing {
+    bool active = false;
+    bool isBpm = true;
+    int value = 0;
+  };
+  Backing backing;
 
   std::unique_ptr<BotClient::Timer> arrivalTimer;
   std::atomic<bool> arrivalDone{false};

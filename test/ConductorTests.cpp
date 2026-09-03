@@ -4,6 +4,7 @@
 #include "FakeBotClient.h"
 #include "JuceUnitShim.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 
@@ -385,6 +386,191 @@ public:
       expect(rig.conductor->owner().empty(), "nobody is the owner by default");
       rig.conductor->setOwner("you");
       expect(rig.conductor->owner() == "you");
+    }
+
+    // ---------------------------------------------------------------------
+    // Voting
+    // ---------------------------------------------------------------------
+    //
+    // The band's job is to leave the room's decision where it would have been
+    // with no bots in it. That means topping a vote up once the humans have
+    // cast what a room of just them would have needed -- and staying out
+    // otherwise, because a bot that abstains is a bot voting against.
+
+    // The server's line, as it broadcasts it: no username, no addressing.
+    auto voteLine = [](int votes, int required, int value) {
+      return "[voting system] leading candidate: " + std::to_string(votes) +
+             "/" + std::to_string(required) + " votes for " +
+             std::to_string(value) + " BPM [each vote expires in 120s]";
+    };
+
+    beginTest("it tops the vote up once the room has decided");
+    {
+      // Two humans and three bots at 50%: the room needs 3, the humans alone
+      // would have needed 1, and one has voted. So the band owes two votes --
+      // its own, and one more.
+      Rig rig;
+      rig.client->joins("alice");
+      rig.client->joins("bob");
+      rig.client->joins("Delvo[bass-bot]");
+      rig.client->joins("Mirn[kit-bot]");
+
+      rig.client->say("", voteLine(1, 3, 130));
+
+      const auto said = rig.client->saidCopy();
+      expect(std::find(said.begin(), said.end(), "!vote bpm 130") != said.end(),
+             "the conductor never cast its own vote");
+      expect(rig.control.votes.size() == 1u, "the band was not asked to vote");
+      if (!rig.control.votes.empty()) {
+        expect(rig.control.votes.front().isBpm);
+        expectEquals(rig.control.votes.front().value, 130);
+        expectEquals(rig.control.votes.front().count, 1,
+                     "the band should cast the shortfall and no more");
+      }
+    }
+
+    beginTest("one vote short means the conductor alone");
+    {
+      // Two humans and two bots: the room needs 2 of 4 and one human has
+      // voted, which is what a room of just the two would have needed. One
+      // vote outstanding, and it is the conductor's own -- no member is asked.
+      //
+      // The numbers have to be consistent with SOME threshold, which is the
+      // trap this test fell into when it was written: "2/3 of 4 users" implies
+      // a threshold of at least 63%, and at that threshold three humans need
+      // all three votes, so the conductor was right to stay out.
+      Rig rig;
+      rig.client->joins("alice");
+      rig.client->joins("bob");
+      rig.client->joins("Delvo[bass-bot]");
+
+      rig.client->say("", voteLine(1, 2, 140));
+
+      const auto said = rig.client->saidCopy();
+      expect(std::find(said.begin(), said.end(), "!vote bpm 140") != said.end());
+      expect(rig.control.votes.empty(),
+             "a shortfall of one is the conductor's own vote, nobody else's");
+    }
+
+    beginTest("it stays out while the room is still deciding");
+    {
+      // Three humans and two bots at 50%: the room needs 3, but a room of just
+      // the three would have needed 2 and only one has voted.
+      Rig rig;
+      rig.client->joins("alice");
+      rig.client->joins("bob");
+      rig.client->joins("carol");
+      rig.client->joins("Delvo[bass-bot]");
+
+      rig.client->say("", voteLine(1, 3, 130));
+
+      for (const auto &line : rig.client->saidCopy())
+        expect(line.rfind("!vote", 0) != 0,
+               "the band voted before the room had: " + line);
+      expect(rig.control.votes.empty());
+    }
+
+    beginTest("a band alone never votes");
+    {
+      // No humans at all. A band changing its own tempo is the band voting for
+      // itself, which is the whole of what it must never do.
+      Rig rig;
+      rig.client->joins("Delvo[bass-bot]");
+      rig.client->joins("Mirn[kit-bot]");
+
+      rig.client->say("", voteLine(1, 2, 130));
+
+      for (const auto &line : rig.client->saidCopy())
+        expect(line.rfind("!vote", 0) != 0, "a band voted with nobody there");
+      expect(rig.control.votes.empty());
+    }
+
+    beginTest("it does not answer its own vote");
+    {
+      // Casting produces another line from the server. Without a latch the
+      // conductor reads that one too and votes again, forever.
+      Rig rig;
+      rig.client->joins("alice");
+      rig.client->joins("bob");
+      rig.client->joins("Delvo[bass-bot]");
+      rig.client->joins("Mirn[kit-bot]");
+
+      rig.client->say("", voteLine(1, 3, 130));
+      rig.client->say("", voteLine(2, 3, 130));
+      rig.client->say("", voteLine(3, 3, 130));
+
+      int casts = 0;
+      for (const auto &line : rig.client->saidCopy())
+        if (line == "!vote bpm 130")
+          ++casts;
+      expectEquals(casts, 1, "the conductor voted more than once");
+      expectEquals((int)rig.control.votes.size(), 1);
+    }
+
+    beginTest("a new candidate is a new question");
+    {
+      Rig rig;
+      rig.client->joins("alice");
+      rig.client->joins("bob");
+      rig.client->joins("Delvo[bass-bot]");
+      rig.client->joins("Mirn[kit-bot]");
+
+      rig.client->say("", voteLine(1, 3, 130));
+      rig.client->say("", voteLine(1, 3, 145));
+
+      const auto said = rig.client->saidCopy();
+      expect(std::find(said.begin(), said.end(), "!vote bpm 130") != said.end());
+      expect(std::find(said.begin(), said.end(), "!vote bpm 145") != said.end(),
+             "the band stayed behind a candidate the room had left");
+    }
+
+    beginTest("a carried vote clears the poll, so the next one is answered");
+    {
+      Rig rig;
+      rig.client->joins("alice");
+      rig.client->joins("bob");
+      rig.client->joins("Delvo[bass-bot]");
+      rig.client->joins("Mirn[kit-bot]");
+
+      rig.client->say("", voteLine(1, 3, 130));
+      rig.client->say("", "[voting system] setting BPM to 130");
+      rig.client->say("", voteLine(1, 3, 130));
+
+      int casts = 0;
+      for (const auto &line : rig.client->saidCopy())
+        if (line == "!vote bpm 130")
+          ++casts;
+      expectEquals(casts, 2,
+                   "the same tempo, proposed again, was treated as spent");
+    }
+
+    beginTest("a BPI vote is cast as a BPI vote");
+    {
+      Rig rig;
+      rig.client->joins("alice");
+      rig.client->joins("bob");
+      rig.client->joins("Delvo[bass-bot]");
+
+      rig.client->say("", "[voting system] leading candidate: 1/2 votes for "
+                          "16 BPI [each vote expires in 120s]");
+
+      const auto said = rig.client->saidCopy();
+      expect(std::find(said.begin(), said.end(), "!vote bpi 16") != said.end(),
+             "a BPI vote was cast as a BPM one, or not at all");
+    }
+
+    beginTest("the voting system is never treated as somebody talking");
+    {
+      // It arrives with an empty username, and the addressing scan must not
+      // see it: "leading candidate" is a sentence, and a conductor answering
+      // it in words would be answering the server.
+      Rig rig;
+      rig.client->joins("alice");
+      rig.client->say("", "[voting system] Voting not enabled");
+
+      for (const auto &line : rig.client->saidCopy())
+        expect(line.rfind("!vote", 0) != 0);
+      expect(rig.control.votes.empty());
     }
   }
 };

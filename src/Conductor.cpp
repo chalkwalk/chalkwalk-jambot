@@ -134,6 +134,12 @@ void Conductor::onChatMessage(const std::string &type,
   if (!isActive() || type != "MSG")
     return;
 
+  // The voting system speaks with no username, and it is answered with a vote
+  // rather than with words. Before the addressing scan, because it is not
+  // addressed to anybody.
+  if (username.empty() && considerVote(text))
+    return;
+
   // Only a person may ask. The band's own chat is the loudest thing in a
   // practice room, and a conductor that recruited on a bot's line would grow
   // the band with nobody asking for it.
@@ -319,6 +325,87 @@ void Conductor::onArrivalDue() {
   // shown.
   say("say \"band play\" to start us and \"band stop\" to end the tune. say a "
       "name to talk to one of us. say \"leave\" and we all go home.");
+}
+
+bool Conductor::considerVote(const std::string &text) {
+  namespace voting = chalkwalk::ninjam::voting;
+
+  const auto line = voting::parseLine(text);
+  if (!line.valid)
+    return false;
+
+  // A carried vote ends the poll -- the server clears every stored vote -- so
+  // the band starts the next one from nothing.
+  if (line.settled) {
+    std::lock_guard<std::mutex> sl(stateMutex);
+    backing = {};
+    return true;
+  }
+
+  if (line.value <= 0 || line.required <= 0)
+    return true;
+
+  BandControl *band = nullptr;
+  {
+    std::lock_guard<std::mutex> sl(stateMutex);
+
+    // Already behind this one. Every vote the band casts brings another line
+    // back, so without this the conductor would answer itself.
+    if (backing.active && backing.isBpm == line.isBpm &&
+        backing.value == line.value)
+      return true;
+
+    // A different candidate is a different question: the band's support is for
+    // a value, not for the idea of changing.
+    backing = {};
+  }
+
+  // Everyone connected counts toward the requirement, this bot included; a
+  // client never appears in its own member list, so it is counted here.
+  int users = 1;
+  int humans = 0;
+  for (const auto &m : netClient->members()) {
+    if (m.username == botName)
+      continue;
+    ++users;
+    if (!BotNames::looksLikeBot(m.username))
+      ++humans;
+  }
+
+  // Nobody to follow. A band alone in a room has no business changing its own
+  // tempo -- that would be the band voting for itself, which is the whole of
+  // what rule 1 forbids.
+  if (humans <= 0)
+    return true;
+
+  // The gate: the humans must already have cast what a room of just them would
+  // have needed. Over-stated rather than under when the threshold cannot be
+  // pinned exactly, so the band errs toward not helping.
+  const int neededAlone =
+      voting::mostVotesNeededAlone(humans, users, line.required);
+  if (line.votes < neededAlone)
+    return true;
+
+  const int shortfall = line.required - line.votes;
+  if (shortfall <= 0)
+    return true; // the room carried it without us
+
+  {
+    std::lock_guard<std::mutex> sl(stateMutex);
+    backing = {true, line.isBpm, line.value};
+    band = control;
+  }
+
+  const std::string what = line.isBpm ? "bpm" : "bpi";
+  say("!vote " + what + " " + std::to_string(line.value));
+
+  // Nothing is said about this. The vote lines are the room's own feedback and
+  // a bot narrating them would be the chorus every part of this design avoids
+  // (`docs/BOT-CHAT.md`: when the tempo changes, nothing).
+  if (shortfall > 1 && band != nullptr)
+    band->castVotes(line.isBpm, line.value, shortfall - 1);
+
+  return true;
 }
 
 void Conductor::say(const std::string &text) {

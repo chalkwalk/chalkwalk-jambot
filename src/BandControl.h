@@ -42,6 +42,26 @@ public:
   // rest, which is the split naming an interval exists to prevent.
   virtual void command(BotChat::Act act, int atInterval) = 0;
 
+  // Have up to `count` members each cast `!vote bpm <value>` (or bpi). Returns
+  // how many actually did.
+  //
+  // THE ONE COMMAND WITH NO INTERVAL, and it is a different shape rather than
+  // an exception: play and stop name the interval they take effect from
+  // because they change what the pump renders, where a vote acts on the server
+  // and is outside the audio timeline entirely. Smuggling it through
+  // `command` with a meaningless interval would make that argument disappear.
+  //
+  // The conductor has already decided the room wants this and has cast its own
+  // vote; `count` is the remainder, so a host casts as many as it can and says
+  // how many that was. Defaulted to none: a band that cannot vote should
+  // report nothing rather than look wired up.
+  virtual int castVotes(bool isBpm, int value, int count) {
+    (void)isBpm;
+    (void)value;
+    (void)count;
+    return 0;
+  }
+
   // One more player. False means the room said no -- the cap belongs to the
   // host and the conductor never learns what it is.
   //

@@ -34,6 +34,21 @@ public:
     commands.push_back({act, atInterval});
   }
 
+  // How many the band has to give. A real host is bounded by its roster.
+  int votesAvailable = 3;
+  struct Voted {
+    bool isBpm;
+    int value;
+    int count;
+  };
+  std::vector<Voted> votes;
+
+  int castVotes(bool isBpm, int value, int count) override {
+    const int cast = count < votesAvailable ? count : votesAvailable;
+    votes.push_back({isBpm, value, cast});
+    return cast;
+  }
+
   bool addPlayer() override {
     if (!allowGrowth)
       return false;
