@@ -860,13 +860,19 @@ does:
    > Points 1, 2, 3 and 5 are untouched. What is superseded is who casts and
    > when, never whether the band should.
    >
-   > `Conductor::considerVote` is the whole of it, and two things fell out of
+   > `Conductor::considerVote` is the whole of it, and three things fell out of
    > writing it. The vote lines the band's own votes provoke come back to it,
    > so it **latches** what it is behind -- without that it answers itself,
    > forever. And the line arrives with an **empty username**, so it is read
    > before the addressing scan: it is not addressed to anybody, and a
    > conductor that ran it through `BotAddress` would be answering the server
    > in words.
+   >
+   > The third is the latch's other half. A poll that **expires** announces
+   > nothing -- the tally is recomputed only when somebody votes -- so a latch
+   > with no clock on it refuses that value for the rest of the session and the
+   > band silently stops helping. The line carries its own timeout, so the
+   > latch carries the time it was set and lets go when that has passed.
 5. **A change of leading candidate resets everything** -- the gate reopens and
    the timers are dropped. The band's support is for a value, not for the idea
    of changing.

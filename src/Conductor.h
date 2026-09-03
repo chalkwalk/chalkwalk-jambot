@@ -119,6 +119,13 @@ private:
     bool active = false;
     bool isBpm = true;
     int value = 0;
+
+    // When it was cast, and how long the server said a vote lives. An expiring
+    // vote makes no traffic at all -- the tally is only recomputed when
+    // somebody votes -- so a poll that dies of old age has to be noticed here
+    // or the band would refuse to back the same value ever again.
+    double at = 0.0;
+    int timeoutSeconds = 0;
   };
   Backing backing;
 

@@ -5,7 +5,9 @@
 #include "JuceUnitShim.h"
 
 #include <algorithm>
+#include <chrono>
 #include <memory>
+#include <thread>
 #include <string>
 
 // The conductor, driven without a room.
@@ -542,6 +544,58 @@ public:
           ++casts;
       expectEquals(casts, 2,
                    "the same tempo, proposed again, was treated as spent");
+    }
+
+    beginTest("a poll that expires is answered again when it comes back");
+    {
+      // Nothing announces an expiry: the server recomputes its tally only when
+      // somebody votes, so a vote that runs out of time makes no traffic at
+      // all. If the conductor does not notice, its latch refuses that value
+      // for the rest of the session -- the band silently stops helping, and
+      // the room has no way to tell.
+      Rig rig;
+      rig.client->joins("alice");
+      rig.client->joins("bob");
+      rig.client->joins("Delvo[bass-bot]");
+      rig.client->joins("Mirn[kit-bot]");
+
+      auto shortLived = [](int votes, int required, int value) {
+        return "[voting system] leading candidate: " + std::to_string(votes) +
+               "/" + std::to_string(required) + " votes for " +
+               std::to_string(value) + " BPM [each vote expires in 1s]";
+      };
+
+      rig.client->say("", shortLived(1, 3, 130));
+      std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+      rig.client->say("", shortLived(1, 3, 130));
+
+      int casts = 0;
+      for (const auto &line : rig.client->saidCopy())
+        if (line == "!vote bpm 130")
+          ++casts;
+      expectEquals(casts, 2,
+                   "the band would not back the same tempo a second time");
+    }
+
+    beginTest("a live poll is still not answered twice");
+    {
+      // The other side of the same clock: a long timeout must not expire, or
+      // the latch stops holding and the conductor answers its own votes.
+      Rig rig;
+      rig.client->joins("alice");
+      rig.client->joins("bob");
+      rig.client->joins("Delvo[bass-bot]");
+      rig.client->joins("Mirn[kit-bot]");
+
+      rig.client->say("", voteLine(1, 3, 130));
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      rig.client->say("", voteLine(2, 3, 130));
+
+      int casts = 0;
+      for (const auto &line : rig.client->saidCopy())
+        if (line == "!vote bpm 130")
+          ++casts;
+      expectEquals(casts, 1);
     }
 
     beginTest("a BPI vote is cast as a BPI vote");

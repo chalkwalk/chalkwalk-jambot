@@ -345,9 +345,20 @@ bool Conductor::considerVote(const std::string &text) {
   if (line.value <= 0 || line.required <= 0)
     return true;
 
+  using namespace std::chrono;
+  const double now =
+      duration<double>(steady_clock::now().time_since_epoch()).count();
+
   BandControl *band = nullptr;
   {
     std::lock_guard<std::mutex> sl(stateMutex);
+
+    // A poll the band backed and that then died of old age. Nothing announces
+    // that, so it is noticed by the clock or not at all -- and if it is not,
+    // the latch below refuses this value for the rest of the session.
+    if (backing.active && backing.timeoutSeconds > 0 &&
+        now - backing.at > backing.timeoutSeconds)
+      backing = {};
 
     // Already behind this one. Every vote the band casts brings another line
     // back, so without this the conductor would answer itself.
@@ -392,7 +403,7 @@ bool Conductor::considerVote(const std::string &text) {
 
   {
     std::lock_guard<std::mutex> sl(stateMutex);
-    backing = {true, line.isBpm, line.value};
+    backing = {true, line.isBpm, line.value, now, line.timeoutSeconds};
     band = control;
   }
 
