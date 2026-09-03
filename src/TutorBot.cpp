@@ -85,8 +85,8 @@ bool wentOut(InputCheck::Reading r) {
 }
 
 constexpr const char *kSignOff =
-    "that is the whole of it -- i'll get out of the way. the band will keep "
-    "playing.";
+    "that is the whole of it -- that was the last lesson. i'll keep the band "
+    "in order, and the rest is yours.";
 
 bool isShake(const std::string &text) {
   const auto t =
@@ -245,7 +245,7 @@ void TutorBot::onIntervalReceived(const std::string &from, int,
   // code -- quiet and clipping both let the thread through, so it is past step
   // 2 within two intervals and a row needing three in a row could never fire.
   // The cost of the wider reading is bounded by construction: four lines, once
-  // each, and then the tutor leaves.
+  // each, and no more -- the bound is on the lines, not on the tutor's stay.
   noteDiagnostic(reading);
 
   // Whether the THREAD moves is the separate question, and it belongs to the

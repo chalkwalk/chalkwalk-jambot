@@ -9,8 +9,8 @@
 #include <mutex>
 #include <string>
 
-// The fifth bot: no instrument, no channel, no audio. It joins, teaches six
-// lines, and leaves.
+// The fifth bot: no instrument, no channel, no audio. It joins and teaches six
+// lines, and then it stops teaching.
 //
 // Designed in `docs/BOT-CHAT.md` section 7, and the three properties that
 // section argues for are the whole reason it is a separate class rather than a
@@ -19,12 +19,15 @@
 //   It can be absent. A room started by somebody who has done this before has
 //   four bots and nothing to silence.
 //
-//   It finishes. When the thread is done it parts of its own accord and leaves
-//   a band behind. A tutorial that leaves when you have got it is a rare thing.
+//   It finishes. When the thread is done the teaching is over and does not
+//   resume. Section 7 had it PART here, and it cannot: a tutor is a conductor
+//   now (16.9) and a room always has one. What that section was against is a
+//   tutorial that lingers uselessly, and a conductor has a job for the rest of
+//   the session -- so the property that survives is the one that mattered.
 //
 //   It is not a player, so it may speak more. The budget that keeps the
 //   instrument bots quiet is about not drowning a jam; this one's whole purpose
-//   is speech, and it is finite by construction -- six lines and gone.
+//   is speech, and it is finite by construction -- six lines and done.
 //
 // GENERIC, deliberately. What it teaches is the interval form and the band's
 // behaviour, both of which are this library's concepts rather than any one

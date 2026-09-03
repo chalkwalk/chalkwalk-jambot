@@ -1130,14 +1130,28 @@ They are playing the changes; that is their whole job, and a drummer who
 interrupts to explain the interval model is not a drummer.
 
 So there is a fifth member of the room with no instrument, no channel and no
-audio at all -- it joins, teaches, and leaves. Three properties follow, and each
-is worth more than it costs:
+audio at all -- it joins and teaches. Three properties follow, and each is worth
+more than it costs:
 
 - **It can be absent.** A room started by somebody who has done this before
   simply has four bots. Nothing needs to be silenced.
-- **It finishes.** When the thread is done the tutor parts, of its own accord,
-  and the room is left as a band. A tutorial that leaves when you have got it is
-  a rare and good thing.
+- **It finishes.** When the thread is done the teaching is over and does not
+  resume.
+
+  > **AMENDED, 2026-09-03.** This said the tutor **parts**, of its own accord,
+  > leaving the room as a band -- "a tutorial that leaves when you have got it
+  > is a rare and good thing", which it is. It cannot now. The tutor is a
+  > conductor (16.9) and a room always has one, so the bot that finishes
+  > teaching is the bot that then leads the band.
+  >
+  > What this property was against is a tutorial that lingers uselessly, and a
+  > conductor is not lingering -- it has a job for the rest of the session. The
+  > half that mattered survives intact: the teaching is finite by construction,
+  > it stops, and it never resumes. The half that is gone is the exit.
+  >
+  > The amendment was decided when 16.9 was written and did not reach this
+  > section for two days, during which the code was right and the design said
+  > otherwise.
 - **It is not a player, so it may speak more.** The budget that keeps the
   instrument bots quiet is about not drowning a jam; the tutor's whole purpose
   is speech, and it is finite by construction.
@@ -1153,10 +1167,15 @@ done rather than on a timer.
 4. When you first set a key: that the band followed it, and that chords work the
    same way.
 5. When you first shake: that the parts changed but the chart did not.
-6. Then: "that is the whole of it -- i'll get out of the way. the band will keep
-   playing." And it parts.
+6. Then: "that is the whole of it -- that was the last lesson. i'll keep the
+   band in order, and the rest is yours." And it stops teaching.
 
-Six lines, and gone. A wizard with twenty tips is one nobody reads.
+Six lines, and done. A wizard with twenty tips is one nobody reads.
+
+The line used to be "i'll get out of the way. the band will keep playing",
+which was true when the tutor left and became a small lie when it stayed: a bot
+that announces its exit and is still speaking an hour later has taught the room
+one thing it did not mean to.
 
 ### Step 2, and the only listening in this design
 
@@ -1219,8 +1238,8 @@ anything else" makes two of the four rows unreachable: quiet and clipping both
 let the thread through, so it is past step 2 within two intervals and a row
 needing three in a row could never fire. It is read here as a rule about scope
 -- these four rows are the only thing ever listened for -- and the check runs
-until the tutor parts. The bound that matters is unchanged: four lines, once
-each, and then it leaves.
+for as long as the tutor is in the room. The bound that matters is unchanged and
+does not depend on the tutor leaving: four lines, once each, and no more.
 
 **A diagnostic never replaces a lesson.** Where the audio reached the room --
 quiet and clipping -- the step's own line is said at once and the remark is an
@@ -2228,10 +2247,11 @@ eight is a size that can be fielded at all. The tutor stays outside the pool.
   ignore the request entirely.
 
   **Written here as the tutor's job, 2026-08-31, and that was the right
-  argument attached to the wrong bot.** The tutor finishes and parts (section
-  7), and a bot that has gone cannot recruit -- the two sections could not both
-  hold. They can now: the tutor IS a conductor, one that also teaches, so the
-  teaching still ends and the leader still leads.
+  argument attached to the wrong bot.** Section 7 had the tutor finish and
+  part, and a bot that has gone cannot recruit -- the two sections could not
+  both hold. They can now: the tutor IS a conductor, one that also teaches, so
+  the teaching still ends and the leader still leads. Section 7 is amended to
+  match.
 - **The cap belongs to the room**, not to the conductor: enforced where bots are
   actually created, so no chat path can exceed it whatever any bot decides.
   Eight in the practice room, four elsewhere -- the full roster where it costs
