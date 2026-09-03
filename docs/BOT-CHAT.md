@@ -732,11 +732,30 @@ wire is English in a chat line (`ChatFormat::parseVote`):
 [voting system] setting BPM to 137
 ```
 
-That gives the count `N`, the threshold `M` and the value. It does **not** name
-the voters, and it reports only the leading candidate, never the split. So "wait
-until every human has voted, then follow the majority" cannot be implemented as
-stated -- neither half is observable, and you can never distinguish a human who
-has not voted yet from one who never will.
+**`M` is the number of votes required, not the number of people.** It is
+`(vucnt * threshold + 50) / 100` in integer division, formatted straight into
+the line (`justinfrankel/ninjam server/usercon.cpp:1239`). So the shortfall is
+`M - N` and nothing has to be inferred: a bot reads the requirement off the room
+rather than predicting it, and never needs the threshold percentage at all.
+
+That gives the count `N`, the requirement `M`, the value, and the timeout. It
+does **not** name the voters, and it reports only the leading candidate, never
+the split. So "wait until every human has voted, then follow the majority"
+cannot be implemented as stated -- neither half is observable, and you can never
+distinguish a human who has not voted yet from one who never will.
+
+The rest of the voting path is recorded in `docs/PROTOCOL.md` under *The voting
+threshold*, and is not repeated here. Three entries there change what a bot
+does:
+
+- **Voting is off unless a server turns it on** (the default disables it), so a
+  bot's first encounter with it on most servers is `Voting not enabled`. It must
+  read that reply rather than wait for a tally that will never come.
+- **The timeout is in the line, and defaults to 120s, not 60.** The 60 written
+  down here for a year came from the example config. Read it off the line.
+- **An expiring vote produces no traffic at all**, because the tally is only
+  recomputed when somebody votes. A bot that wants to know a vote failed has to
+  time it.
 
 **The rule.** Enough is observable without them:
 
@@ -748,16 +767,48 @@ has not voted yet from one who never will.
    trips -- so while the band is waiting, `N` *is* the human count. Nothing has
    to be disentangled and no voter has to be identified: the only two inputs
    are how many humans are in the room and how many votes have been cast.
-3. **A strict majority of humans must back the candidate** -- `humanVotes * 2 >
-   H`. If that never happens, no bot votes, and the offer expires exactly as it
-   would have in a room with no bots in it.
+3. **The gate is the server's own arithmetic, applied to the humans alone.**
 
-   **Strict, not "half is enough".** The two differ only when `H` is even and
-   the room splits evenly, and there the weaker gate is wrong: at a 60%
-   threshold it disagrees with a bot-free room at *every* even `H`, always by
-   letting exactly half the room carry a change over the other half. In a
-   two-person room that is one player overruling the other with the band's
-   help, which is the precise failure this rule exists to prevent.
+   > **CORRECTED, 2026-09-03.** This point said "a strict majority --
+   > `humanVotes * 2 > H`", and argued at length that "half is enough" was
+   > wrong. Both were guesses at a formula the server already publishes, and
+   > both are wrong, in both directions. See below.
+
+   The band's whole job is to leave the room's decision where it would have been
+   with no bots in it. That is not a majority rule and it is not a percentage
+   anyone has to choose -- it is one line, the server's own, with the human
+   population in it:
+
+   ```
+   neededAlone = (H * threshold + 50) / 100      // usercon.cpp:1215, on H
+   ```
+
+   The band tops the vote up when `humanVotes >= neededAlone`, and otherwise
+   stays out. By construction that reproduces a bot-free room exactly, at every
+   `H` and every threshold, because it *is* the room's rule evaluated on the
+   room's own membership.
+
+   **Both fixed gates fail, and not only in the direction expected.** Swept
+   against a bot-free room for thresholds 40, 50, 60, 66, 75 and 100 percent and
+   `H` from 1 to 8 -- every reachable `humanVotes` -- a strict majority
+   disagrees in **33** cases and "half is enough" in **35**; the rule above
+   disagrees in **0**. The interesting half of that is where a strict majority
+   is too *strict*: at a 50% threshold `(2*50+50)/100 = 1`, so one of two humans
+   carries a tempo change alone -- and a band applying a majority rule would
+   refuse to help, taking away a change the room could have made without it.
+   That is the same failure this rule exists to prevent, arriving from the other
+   side.
+
+   The earlier draft reported this sweep as "identical at every `H`, with no
+   divergences at all". That was measured against the wrong thing.
+
+   **What is not free is the threshold**, which appears in no message. It can be
+   bracketed -- `M` and `vucnt` are both known, so it lies in a narrow range --
+   but one vote line pins `neededAlone` only about half the time (swept over
+   band sizes 2 to 5, `H` 1 to 8, thresholds 1 to 100: ambiguous in 46% of
+   cases). **The spread is never more than one vote**, so the band takes the
+   higher value and is then wrong only ever by declining to help. Failing toward
+   inaction is the correct direction for a band that must never overrule a room.
 
    The gate is tested **only while the band is still silent**, and the instant
    it trips the timers start. It is never re-tested, so it never has to be: any
@@ -795,31 +846,20 @@ public, the rule is a pure function of them, and each bot reaches the same
 answer independently. A rule they can all evaluate without talking to each other
 beats a protocol between them, every time.
 
-**Does it distort the outcome?** No -- and that is a stronger answer than the
-one first written here, which used a ceiling where the server rounds half up.
+**Does it distort the outcome?** No, and that is now a claim with a method
+behind it rather than a hope: the gate is the room's own formula on the room's
+own membership, and the sweep in point 3 finds no case where it differs.
 
-The server's arithmetic is `(vucnt * threshold + 50) / 100` in integer division
-(`justinfrankel/ninjam server/usercon.cpp:1239`), and `vucnt` is every
-authenticated user. Swept against a bot-free room with the real formula, for
-`B = 4` and `H` from 1 to 8, at both 50% and 60%: **identical at every `H`,
-with no divergences at all.** A strict majority of humans carries exactly what
-it would have carried alone, and a minority carries nothing.
+**The arithmetic is read from the server source rather than assumed**, and
+recorded in `docs/PROTOCOL.md`. The one input the wire does not carry is the
+threshold percentage, handled as point 3 describes.
 
-The earlier draft reported one divergence at `H = 7`. That was the wrong
-rounding, not a property of the rule.
-
-**This needs no coordination**, which is the reason to prefer it. Every input is
-public, the rule is a pure function of them, and each bot reaches the same
-answer independently. That is the same trick as the arrival roster in section 6:
-a rule they can all evaluate without talking to each other beats a protocol
-between them, every time.
-
-**The arithmetic is now read from the server source rather than assumed**, and
-recorded in `docs/PROTOCOL.md`. What remains genuinely per-server is the
-`SetVotingThreshold` percentage itself, which is configuration -- but the band
-never needs it: `M` arrives in the vote line as the denominator of `N/M`, so a
-bot reads the threshold off the room instead of predicting it. The sweep above
-matters for judging the design, not for running it.
+**One escape hatch exists and is refused.** `PRIV_HIDDEN` users are excluded
+from `vucnt` entirely (`usercon.cpp:1201`), so a server that marked its own bots
+hidden would dissolve this problem rather than manage it. It also removes them
+from the user list (`:207`, `:376`), which is fatal for a band you are meant to
+see and address by name. It is the right privilege for a listener who is not
+playing, though, and the observer server's web guests are exactly that.
 
 ### The pipeline
 
