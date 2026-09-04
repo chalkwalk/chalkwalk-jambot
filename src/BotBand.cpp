@@ -199,6 +199,27 @@ Part part(const Settings &s) {
   return p;
 }
 
+std::vector<Onset> select(const Part &p, Selection how) {
+  std::vector<Onset> out;
+  out.reserve(p.onsets.size());
+  for (const auto &o : p.onsets) {
+    switch (how) {
+    case Selection::Whole:
+      out.push_back(o);
+      break;
+    case Selection::Kick:
+      if (o.fromKick)
+        out.push_back(o);
+      break;
+    case Selection::Complement:
+      if (!o.fromKick)
+        out.push_back(o);
+      break;
+    }
+  }
+  return out;
+}
+
 } // namespace Foundation
 
 std::uint32_t saltedSeed(Voice voice, std::uint32_t seed) {
@@ -704,7 +725,17 @@ void renderDrums(const Settings &s, int intervalIndex, Phase phase, float *out,
   const int hatPulses = pattern.hatPulses;
   const int halfBeat = beatSamples / 2;
 
-  for (int step = 0; step < kick.steps; ++step) {
+  // The kick comes off the shared ground rather than off a figure of its own:
+  // it is the strong subset of the part the bass plays whole. The velocities
+  // still come from `accents`, which agrees with the part's marks about where
+  // a kick lands -- asserted in chalkwalk-music, because that is where both
+  // functions live.
+  const auto foundation = Foundation::part(s);
+  for (const auto &onset :
+       Foundation::select(foundation, Foundation::Selection::Kick)) {
+    // Back to the coarse grid: the part is at the bass's resolution and a kick
+    // lands on beats.
+    const int step = onset.step / foundation.stepsPerBeat;
     const int at = step * beatSamples;
     if (at >= numSamples)
       break;

@@ -581,6 +581,66 @@ public:
       expect(part.onsets.front().onChange, "the downbeat did not re-root");
     }
 
+    beginTest("the kit selects the kick, and the bass the whole ground");
+    {
+      using BotBand::Foundation::Selection;
+      for (std::uint32_t seed = 1; seed <= 20; ++seed) {
+        const auto s = settingsFor("C major", 120, 16, seed);
+        const auto part = BotBand::Foundation::part(s);
+
+        const auto whole = BotBand::Foundation::select(part, Selection::Whole);
+        const auto kick = BotBand::Foundation::select(part, Selection::Kick);
+        const auto rest =
+            BotBand::Foundation::select(part, Selection::Complement);
+
+        expectEquals((int)whole.size(), (int)part.onsets.size());
+        expectEquals((int)kick.size() + (int)rest.size(),
+                     (int)part.onsets.size(),
+                     "the kick and its complement do not partition the part");
+
+        for (const auto &o : kick)
+          expect(o.fromKick, "a non-kick onset was selected as the kick's");
+        for (const auto &o : rest)
+          expect(!o.fromKick, "a kick onset leaked into the complement");
+      }
+    }
+
+    beginTest("what the kit selects is what the kit used to compute");
+    {
+      // The permanent, cross-platform half of this refactor's proof. The audio
+      // parity check compares two runs of one binary; this compares the new
+      // selection against the old formula, in integers, on every platform the
+      // suite runs on.
+      using BotBand::Foundation::Selection;
+      for (std::uint32_t seed = 1; seed <= 40; ++seed)
+        for (int bpi : {8, 16, 32}) {
+          const auto s = settingsFor("C major", 120, bpi, seed);
+          const auto part = BotBand::Foundation::part(s);
+          const auto kickFigure = BotBand::figureFor(BotBand::Voice::Drums, s);
+          const auto selected =
+              BotBand::Foundation::select(part, Selection::Kick);
+
+          std::vector<int> was;
+          for (int k = 0; k < kickFigure.steps; ++k)
+            if (chalkwalk::music::hit(k, kickFigure.steps, kickFigure.pulses,
+                                      kickFigure.rotation))
+              was.push_back(k);
+
+          std::vector<int> now;
+          for (const auto &o : selected)
+            now.push_back(o.step / part.stepsPerBeat);
+
+          expectEquals((int)now.size(), (int)was.size(),
+                       "different number of kicks at seed " +
+                           std::to_string(seed) + " bpi " +
+                           std::to_string(bpi));
+          for (std::size_t i = 0; i < was.size() && i < now.size(); ++i)
+            expectEquals(now[i], was[i],
+                         "kick " + std::to_string(i) + " moved at seed " +
+                             std::to_string(seed));
+        }
+    }
+
     beginTest("the part is at the bass's resolution, not the kick's");
     {
       // The inversion 16.2 had backwards: the fine grid is the ground and the

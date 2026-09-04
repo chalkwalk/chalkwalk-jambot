@@ -158,6 +158,24 @@ struct Part {
 
 Part part(const Settings &s);
 
+// How a member relates to the shared part. The rule behind the three is one
+// rule: a member's figure is a function of the part, never an independent idea
+// (docs/BOT-CHAT.md section 16.2, as amended).
+//
+// There is no Union. Union is how the part is FORMED -- the kick's onsets
+// together with the bass's figure -- not how a member selects from it.
+//
+// `Kick` is 16.2's `Subset` policy, named for the only marked subset the
+// foundation has. When a second stratum needs a differently-marked one, the
+// mark moves into the enum rather than a second enum appearing beside it.
+enum class Selection {
+  Whole,      // the bass: it plays the ground entire
+  Kick,       // the kit: the strong subset a drum plays
+  Complement, // only where the kick is not; nothing uses it until perc exists
+};
+
+std::vector<Onset> select(const Part &p, Selection how);
+
 } // namespace Foundation
 
 // How strongly a beat is stressed by the metre: the downbeat of the interval
