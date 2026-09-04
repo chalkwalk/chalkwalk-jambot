@@ -2096,6 +2096,19 @@ relationship written once as a special case. And the keys have no rhythmic
 figure at all, because the chord changes are the rhythm: a pad stratum whose
 onsets come from the harmony. Generalising those two facts is the work.
 
+> **BUILT, 2026-09-03, for the foundation.** `BotBand::Foundation::part` and
+> `::select`: the kit and the bass select from one ground instead of the bass
+> deriving a figure from the kick's. The pad, lead and accent strata are still
+> unbuilt.
+>
+> It came first for a reason nothing here predicted. `figureFor(Bass)` nudged
+> its pulse count coprime with its steps SO THAT the figure would not repeat
+> inside the interval -- because a repeating scaled copy of the kick is the
+> kick again. That rule is right, and it made the phrase work in `ROADMAP.md`
+> impossible: a phrase period is exactly a repeat. What was wrong was deriving
+> one figure from another at all. Defined against the kick rather than from it,
+> the collapse stops being possible instead of being avoided by coprimality.
+
 ### 16.2 The full part, and selecting from it
 
 Players sharing a stratum need to know two things: what the whole is meant to
@@ -2109,8 +2122,8 @@ what makes the aggregate cohere without anybody coordinating.
 
 | # | role | stratum | selects | realises as |
 |---|---|---|---|---|
-| 1 | rhythm | foundation | the whole figure | kit |
-| 2 | bass | foundation | complement of the kick | sustained pitch |
+| 1 | rhythm | foundation | the kick-marked subset | kit |
+| 2 | bass | foundation | the whole part | sustained pitch |
 | 3 | chords | pad | the chord-change onsets | pad, stabs or arp |
 | 4 | lead | lead | the lead stratum's onsets | melodic shaping |
 | 5 | accent | accent | the strong-onset subset | short, struck |
@@ -2118,9 +2131,43 @@ what makes the aggregate cohere without anybody coordinating.
 | 7 | perc | foundation | complement of the kit figure | percussive |
 | 8 | backup melody | lead | complement of the lead's phrase | melodic shaping |
 
-**The second member of a stratum is always a subset or a complement of the
-first, never an independent idea.** One rule, not eight special cases, and it
-is the rule the bass already follows against the kick.
+**A member's figure is a function of the shared part, never an independent
+idea.** One rule, not eight special cases.
+
+> **AMENDED, 2026-09-03, and rows 1 and 2 were wrong in opposite
+> directions.** They read:
+>
+> | 1 | rhythm | foundation | the whole figure | kit |
+> | 2 | bass | foundation | complement of the kick | sustained pitch |
+>
+> and the rule under them read "the second member of a stratum is always a
+> subset or a complement of the first, never an independent idea -- and it is
+> the rule the bass already follows against the kick".
+>
+> **The bass has never followed it.** `renderBass` collected an onset on a
+> chord change, on a kick, OR on its own figure -- a union, and the comment
+> beside it gives the reason: *locking to the kick has to mean actually landing
+> on it, and the doubled Euclidean does not do that by itself*. A complement
+> would put no bass note on the downbeat, which is close to the opposite of
+> what a rhythm section does. The one example cited for the one rule was the
+> one case that contradicted it.
+>
+> **The primacy also inverts.** The part is at the BASS's resolution -- the
+> union of the kick's onsets and the bass's doubled figure -- and the kick is
+> the strong subset of it that a drum plays. So row 1 cannot select the whole
+> figure either: it would be playing the bass line on a drum.
+>
+> That second correction is forced rather than chosen. A phrase shorter than
+> the interval repeats the shared part, and a riff is mostly made of the bass's
+> own onsets, so a part coarse enough for the kit to play whole is a part in
+> which nothing recurs (`ROADMAP.md`, *Form*).
+>
+> The policies are `Whole`, `Subset` and `Complement`. There is no `Union`:
+> union is how the part is FORMED, not how a member selects from it.
+>
+> Built, and byte-identical: `BotBand::Foundation::part` and `::select`, proved
+> by `AntiphonVoiceLab parity` over 288 renders rather than by the suite
+> passing.
 
 Bass is second, not third. A kit and a bass is a rhythm section and sounds like
 a decision; a kit and a comping instrument with no bottom sounds like something
