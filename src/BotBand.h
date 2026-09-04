@@ -130,6 +130,36 @@ struct Figure {
 
 Figure figureFor(Voice voice, const Settings &s);
 
+// The foundation stratum: the kit and the bass, and the one rhythmic ground
+// they both play from (docs/BOT-CHAT.md section 16.1).
+//
+// The part is at the BASS's resolution rather than the kick's, and the kick is
+// the strong subset of it that a drum plays. That is the opposite way round
+// from how 16.2 first read, and it is forced rather than chosen: a phrase
+// shorter than the interval repeats the shared part, and a riff is mostly made
+// of the bass's own onsets -- so a part coarse enough for the kit to play
+// whole is a part in which nothing recurs.
+namespace Foundation {
+
+struct Onset {
+  int step = 0;          // on the fine grid
+  bool fromKick = false; // the kick lands here, so the drum plays it
+  bool onChange = false; // the harmony moves here; a pitched member re-roots
+};
+
+// The full part for one interval. `steps` is the fine grid; `stepsPerBeat` is
+// how many of those go to a beat, which is what maps onto the harmony's own
+// grid (Harmony::kStepsPerBeat).
+struct Part {
+  int steps = 0;
+  int stepsPerBeat = 1;
+  std::vector<Onset> onsets;
+};
+
+Part part(const Settings &s);
+
+} // namespace Foundation
+
 // How strongly a beat is stressed by the metre: the downbeat of the interval
 // is highest, then the halves, then the quarters, then the beat, and an
 // off-beat subdivision lowest.

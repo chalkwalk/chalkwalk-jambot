@@ -150,6 +150,57 @@ int metricStrength(int step, int bpi) {
   return 1;        // an ordinary beat
 }
 
+namespace Foundation {
+
+// Lifted verbatim out of `renderBass`, which computed it inline. The union of
+// the kick's onsets, the bass's own doubled figure and the chord changes IS
+// the foundation's ground -- it was simply private to one voice, so the kit
+// could not see the figure it was half of.
+Part part(const Settings &s) {
+  Part p;
+  const Figure f = figureFor(Voice::Bass, s);
+  p.steps = f.steps;
+  p.stepsPerBeat = std::max(1, f.steps / std::max(1, s.bpi));
+
+  const auto layout = layoutOf(s);
+  const Figure kick = figureFor(Voice::Drums, s);
+  const int stepsPerBeat = p.stepsPerBeat;
+
+  // The figure's grid and the harmony's need not be the same resolution, so
+  // map one onto the other rather than assuming they match.
+  auto layoutStepOf = [stepsPerBeat](int step) {
+    return step * Harmony::kStepsPerBeat / stepsPerBeat;
+  };
+
+  for (int step = 0; step < f.steps; ++step) {
+    // A chord change always gets a note, whether or not the figure has an
+    // onset there. A bass player lands on the change; leaving it to the
+    // rotation means the harmony is sometimes announced by nobody, and the
+    // first thing heard over a new chord is its fifth.
+    const bool onChange =
+        step == 0 ||
+        (step * Harmony::kStepsPerBeat % stepsPerBeat == 0 &&
+         Harmony::changesAtStep(layout, layoutStepOf(step)));
+
+    // Every kick gets a bass note, plus the figure's own. The union rather
+    // than the figure alone: locking to the kick has to mean actually landing
+    // on it, and the doubled Euclidean does not do that by itself.
+    const bool onKick =
+        step % stepsPerBeat == 0 &&
+        chalkwalk::music::hit(step / stepsPerBeat, kick.steps, kick.pulses,
+                              kick.rotation);
+
+    if (!onChange && !onKick &&
+        !chalkwalk::music::hit(step, f.steps, f.pulses, f.rotation))
+      continue;
+
+    p.onsets.push_back({step, onKick, onChange});
+  }
+  return p;
+}
+
+} // namespace Foundation
+
 std::uint32_t saltedSeed(Voice voice, std::uint32_t seed) {
   // Without this, one seed gives every instrument the same figure -- the bass
   // playing the kick pattern note for note. The generator this came from documents
@@ -768,49 +819,24 @@ void renderBass(const Settings &s, float *out, int numSamples) {
     return step * Harmony::kStepsPerBeat / stepsPerBeat;
   };
 
-  // Collect the onsets first, so each note can be held until the next one
-  // rather than for an arbitrary fixed length. A sustained voice needs to know
-  // where it stops.
-  std::vector<int> onsets;
-  std::vector<bool> isChange;
-  const Figure kick = figureFor(Voice::Drums, s);
-
-  for (int step = 0; step < f.steps; ++step) {
-    // A chord change always gets a note, whether or not the figure has an
-    // onset there. A bass player lands on the change; leaving it to the
-    // rotation means the harmony is sometimes announced by nobody, and the
-    // first thing heard over a new chord is its fifth.
-    const bool onChange =
-        step == 0 ||
-        (step * Harmony::kStepsPerBeat % stepsPerBeat == 0 &&
-         Harmony::changesAtStep(layout, layoutStepOf(step)));
-
-    // Every kick gets a bass note, plus the figure's own. The union rather
-    // than the figure alone: locking to the kick has to mean actually landing
-    // on it, and the doubled Euclidean does not do that by itself.
-    const bool onKick =
-        step % stepsPerBeat == 0 &&
-        chalkwalk::music::hit(step / stepsPerBeat, kick.steps, kick.pulses,
-                       kick.rotation);
-
-    if (!onChange && !onKick &&
-        !chalkwalk::music::hit(step, f.steps, f.pulses, f.rotation))
-      continue;
-
-    onsets.push_back(step);
-    isChange.push_back(onChange);
-  }
+  // The onsets are the foundation's, not the bass's own: the kit plays the
+  // strong subset of the same ground. Collected first, so each note can be
+  // held until the next one rather than for an arbitrary fixed length -- a
+  // sustained voice needs to know where it stops.
+  const auto foundation = Foundation::part(s);
+  const auto &onsets = foundation.onsets;
 
   for (size_t n = 0; n < onsets.size(); ++n) {
-    const int step = onsets[n];
-    const bool onChange = isChange[n];
+    const int step = onsets[n].step;
+    const bool onChange = onsets[n].onChange;
 
     const int at = step * stepSamples;
     if (at >= numSamples)
       break;
 
     // Up to the next note, or the end of the interval.
-    const int nextStep = (n + 1 < onsets.size()) ? onsets[n + 1] : f.steps;
+    const int nextStep =
+        (n + 1 < onsets.size()) ? onsets[n + 1].step : f.steps;
     const int length =
         std::min(numSamples - at, (nextStep - step) * stepSamples);
     if (length <= 0)
@@ -857,9 +883,7 @@ void renderBass(const Settings &s, float *out, int numSamples) {
     float velocity = 0.45f;
     if (onChange)
       velocity = 1.0f;
-    else if (step % stepsPerBeat == 0 &&
-             chalkwalk::music::hit(step / stepsPerBeat, kick.steps, kick.pulses,
-                            kick.rotation))
+    else if (onsets[n].fromKick)
       velocity = 0.72f;
 
     // A few percent either way, so two notes of the same weight are not the

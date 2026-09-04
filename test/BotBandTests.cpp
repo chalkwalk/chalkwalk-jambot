@@ -526,6 +526,75 @@ public:
       const auto f = BotBand::figureFor(BotBand::Voice::Keys, s);
       expectEquals(f.pulses, (int)Harmony::flatten(s.chart).size());
     }
+
+    // --- the foundation's shared ground ---
+
+    beginTest("the foundation's part contains every kick, and the bass's own");
+    {
+      // The two claims that make it a shared ground rather than two figures:
+      // the kick is entirely inside it, and it is denser than the kick alone.
+      for (std::uint32_t seed = 1; seed <= 20; ++seed)
+        for (int bpi : {8, 16}) {
+          const auto s = settingsFor("C major", 120, bpi, seed);
+          const auto part = BotBand::Foundation::part(s);
+          const auto kick = BotBand::figureFor(BotBand::Voice::Drums, s);
+
+          expect(!part.onsets.empty(),
+                 "empty part at seed " + std::to_string(seed));
+
+          int marked = 0;
+          for (const auto &o : part.onsets) {
+            expect(o.step >= 0 && o.step < part.steps, "step out of range");
+            if (o.fromKick)
+              ++marked;
+          }
+
+          int expected = 0;
+          for (int k = 0; k < kick.steps; ++k)
+            if (chalkwalk::music::hit(k, kick.steps, kick.pulses, kick.rotation))
+              ++expected;
+          expectEquals(marked, expected,
+                       "the part lost a kick at seed " + std::to_string(seed));
+
+          expect((int)part.onsets.size() > marked,
+                 "the part is no denser than the kick it contains, at seed " +
+                     std::to_string(seed));
+        }
+    }
+
+    beginTest("the onsets rise, and none repeats");
+    {
+      const auto s = settingsFor("C major", 120, 16, 7);
+      const auto part = BotBand::Foundation::part(s);
+      for (std::size_t i = 1; i < part.onsets.size(); ++i)
+        expect(part.onsets[i].step > part.onsets[i - 1].step,
+               "onsets are not strictly increasing");
+    }
+
+    beginTest("step 0 is always a chord change");
+    {
+      // An interval opens on its first chord, so the bass always states it.
+      const auto s = settingsFor("C major", 120, 16, 3);
+      const auto part = BotBand::Foundation::part(s);
+      expect(!part.onsets.empty());
+      expectEquals(part.onsets.front().step, 0);
+      expect(part.onsets.front().onChange, "the downbeat did not re-root");
+    }
+
+    beginTest("the part is at the bass's resolution, not the kick's");
+    {
+      // The inversion 16.2 had backwards: the fine grid is the ground and the
+      // kick is the strong subset of it.
+      for (int bpi : {8, 16, 32}) {
+        const auto s = settingsFor("C major", 120, bpi, 11);
+        const auto part = BotBand::Foundation::part(s);
+        const auto bass = BotBand::figureFor(BotBand::Voice::Bass, s);
+        const auto kick = BotBand::figureFor(BotBand::Voice::Drums, s);
+        expectEquals(part.steps, bass.steps);
+        expect(part.steps > kick.steps, "the part is no finer than the kick");
+        expectEquals(part.stepsPerBeat, bass.steps / bpi);
+      }
+    }
   }
 
   void runAudioTests() {
