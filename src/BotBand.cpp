@@ -156,15 +156,38 @@ namespace Foundation {
 // the kick's onsets, the bass's own doubled figure and the chord changes IS
 // the foundation's ground -- it was simply private to one voice, so the kit
 // could not see the figure it was half of.
-Part part(const Settings &s) {
+Part partWithPhrase(const Settings &s, int phrase) {
   Part p;
   const Figure f = figureFor(Voice::Bass, s);
   p.steps = f.steps;
   p.stepsPerBeat = std::max(1, f.steps / std::max(1, s.bpi));
+  if (phrase <= 0 || p.steps % phrase != 0)
+    phrase = p.steps;
+  p.phrase = phrase;
 
   const auto layout = layoutOf(s);
   const Figure kick = figureFor(Voice::Drums, s);
   const int stepsPerBeat = p.stepsPerBeat;
+  const int kickPhrase = std::max(1, phrase / stepsPerBeat);
+
+  // The figures, scaled to the phrase, so that density is a property of the
+  // groove rather than of how often it comes round.
+  //
+  // The coprime nudge MOVES to the phrase's scale rather than being dropped.
+  // It existed so the bass figure would not repeat inside the interval,
+  // because a repeating scaled copy of the kick is the kick again; that
+  // argument is unchanged at the new scale, where a figure sub-repeating
+  // inside its own phrase is still a metronome.
+  const int bassPulses =
+      phrase == p.steps
+          ? f.pulses
+          : std::max(1, chalkwalk::music::nearestCoprimePulses(
+                            phrase, std::max(1, f.pulses * phrase / p.steps),
+                            true));
+  const int kickPulses =
+      kickPhrase == kick.steps
+          ? kick.pulses
+          : std::max(1, kick.pulses * kickPhrase / std::max(1, kick.steps));
 
   // The figure's grid and the harmony's need not be the same resolution, so
   // map one onto the other rather than assuming they match.
@@ -185,19 +208,25 @@ Part part(const Settings &s) {
     // Every kick gets a bass note, plus the figure's own. The union rather
     // than the figure alone: locking to the kick has to mean actually landing
     // on it, and the doubled Euclidean does not do that by itself.
+    // The harmony is NOT tiled with the figure: it is whatever it is at this
+    // point in the interval, which is what makes a repeated rhythm adapt to
+    // the changes rather than fight them.
+    const int inPhrase = step % phrase;
     const bool onKick =
         step % stepsPerBeat == 0 &&
-        chalkwalk::music::hit(step / stepsPerBeat, kick.steps, kick.pulses,
-                              kick.rotation);
+        chalkwalk::music::hit((inPhrase / stepsPerBeat) % kickPhrase, kickPhrase,
+                              kickPulses, kick.rotation);
 
     if (!onChange && !onKick &&
-        !chalkwalk::music::hit(step, f.steps, f.pulses, f.rotation))
+        !chalkwalk::music::hit(inPhrase, phrase, bassPulses, f.rotation))
       continue;
 
     p.onsets.push_back({step, onKick, onChange});
   }
   return p;
 }
+
+Part part(const Settings &s) { return partWithPhrase(s, phraseSteps(s)); }
 
 std::vector<Onset> select(const Part &p, Selection how) {
   std::vector<Onset> out;
@@ -280,6 +309,15 @@ std::uint32_t saltedSeed(Voice voice, std::uint32_t seed) {
 // the lead's 7919 stride, as it was. `Section` has no callers yet and folds to
 // `Session`, because with no form there is one section and it lasts the whole
 // session -- which is the true statement, not a placeholder.
+std::uint32_t performanceSeed(Voice v, const Settings &s, int intervalIndex,
+                              std::uint32_t salt) {
+  // The multiplier is not 2654435761u, and that is not arbitrary: the keys
+  // already salt by that times the note number, so an interval term sharing it
+  // would alias -- note 1 of interval 5 and note 2 of interval 4 would be the
+  // same hit. It differs from figureSeed's 7919 for the same reason.
+  return saltedSeed(v, s.seed) + salt + 1664525u * (std::uint32_t)intervalIndex;
+}
+
 std::uint32_t figureSeed(Voice v, const Settings &s, Hold hold,
                          int intervalIndex, std::uint32_t salt) {
   const std::uint32_t base = saltedSeed(v, s.seed) + salt;
@@ -802,7 +840,8 @@ void renderDrums(const Settings &s, int intervalIndex, Phase phase, float *out,
     // backbeat sitting under the kick and the hats.
     BotVoice::renderSnare(out + at, numSamples - at, s.sampleRate,
                           kDrumHeadroom * 0.72f,
-                          saltedSeed(Voice::Drums, s.seed) + (std::uint32_t)step);
+                          performanceSeed(Voice::Drums, s, intervalIndex,
+                                          (std::uint32_t)step));
   }
 
   // The hats carry the variation. Rotating their pattern by the interval index
@@ -821,7 +860,8 @@ void renderDrums(const Settings &s, int intervalIndex, Phase phase, float *out,
     const bool open = (step % 4) == 3;
     BotVoice::renderHat(out + at, numSamples - at, s.sampleRate,
                         kDrumHeadroom * ((step % 2) == 0 ? 0.5f : 0.32f),
-                        saltedSeed(Voice::Drums, s.seed) + 977u * (std::uint32_t)step,
+                        performanceSeed(Voice::Drums, s, intervalIndex,
+                                        977u * (std::uint32_t)step),
                         open);
   }
 
@@ -840,7 +880,8 @@ void renderDrums(const Settings &s, int intervalIndex, Phase phase, float *out,
         continue;
       BotVoice::renderSnare(out + at, numSamples - at, s.sampleRate,
                             kDrumHeadroom * (0.46f + 0.16f * (float)sub),
-                            saltedSeed(Voice::Drums, s.seed) + 31u * (std::uint32_t)sub);
+                            performanceSeed(Voice::Drums, s, intervalIndex,
+                                            31u * (std::uint32_t)sub));
     }
   }
 
@@ -870,7 +911,8 @@ inline constexpr double kBassAnchorMidi = 36.0;
 // The keys have no anchor of their own any more: a voicing is absolute MIDI
 // notes chosen by Harmony::voiceLead, inside the register it names.
 
-void renderBass(const Settings &s, float *out, int numSamples) {
+void renderBass(const Settings &s, int intervalIndex, float *out,
+                int numSamples) {
   const int beatSamples = samplesPerBeat(s);
   if (beatSamples <= 0 || !s.key.valid)
     return;
@@ -920,9 +962,21 @@ void renderBass(const Settings &s, float *out, int numSamples) {
 
     // Root, octave and fifth: the three notes that state a chord without
     // getting in the way of anyone playing over it.
+    // The riff repeats as a SHAPE, not as a set of pitches. The choice is
+    // taken on the phrase-relative step, so tile two makes the same choice as
+    // tile one -- and because the choice is root, octave or the chord's own
+    // fifth, applying it over a different chord gives THAT chord's root,
+    // octave or fifth. Recontextualised rather than transposed, and correct by
+    // construction rather than by a compatibility test.
+    //
+    // Indexed rather than drawn in sequence, which is what a repeat needs: the
+    // old single walk down the interval gave tile two different numbers from
+    // tile one, so the figure returned and the notes on it did not.
     int semitoneAboveRoot = 0;
     if (!onChange) {
-      const int roll = rng.range(0, 9);
+      Rng pick(figureSeed(Voice::Bass, s, Hold::Session, 0) +
+               8191u * (std::uint32_t)(step % foundation.phrase));
+      const int roll = pick.range(0, 9);
       if (roll < 5)
         semitoneAboveRoot = 0; // root, most of the time
       else if (roll < 8)
@@ -966,8 +1020,8 @@ void renderBass(const Settings &s, float *out, int numSamples) {
 
     BotVoice::renderBassString(out + at, length, s.sampleRate,
                                BotVoice::midiToHz(midi), velocity, patch,
-                               saltedSeed(Voice::Bass, s.seed) +
-                                   131u * (std::uint32_t)step);
+                               performanceSeed(Voice::Bass, s, intervalIndex,
+                                               131u * (std::uint32_t)step));
   }
 }
 
@@ -999,7 +1053,8 @@ inline constexpr float kKeysChorusMix = 0.75f;
 // far enough to be heard as distortion.
 inline constexpr double kKeysDrive = 1.2;
 
-void renderKeys(const Settings &s, float *out, float *right, int numSamples) {
+void renderKeys(const Settings &s, int intervalIndex, float *out, float *right,
+                int numSamples) {
   const int beatSamples = samplesPerBeat(s);
   const auto layout = layoutOf(s);
   if (beatSamples <= 0 || layout.empty())
@@ -1062,9 +1117,9 @@ void renderKeys(const Settings &s, float *out, float *right, int numSamples) {
       // same waveform twice.
       BotVoice::renderPad(out + at, length, hold, s.sampleRate,
                           BotVoice::midiToHz((double)note), 0.85f, patch,
-                          saltedSeed(Voice::Keys, s.seed) +
-                              2654435761u * (std::uint32_t)note +
-                              97u * (std::uint32_t)span.from);
+                          performanceSeed(Voice::Keys, s, intervalIndex,
+                                          2654435761u * (std::uint32_t)note +
+                                              97u * (std::uint32_t)span.from));
   }
 
   // The interval wraps onto itself.
@@ -1094,9 +1149,9 @@ void renderKeys(const Settings &s, float *out, float *right, int numSamples) {
       for (int note : voicings[(size_t)last.chord])
         BotVoice::renderPad(scratch.data(), hold + tail, hold, s.sampleRate,
                             BotVoice::midiToHz((double)note), 0.85f, patch,
-                            saltedSeed(Voice::Keys, s.seed) +
-                                2654435761u * (std::uint32_t)note +
-                                97u * (std::uint32_t)last.from);
+                            performanceSeed(Voice::Keys, s, intervalIndex,
+                                            2654435761u * (std::uint32_t)note +
+                                                97u * (std::uint32_t)last.from));
 
       const int carried = std::min(numSamples, tail);
       for (int i = 0; i < carried; ++i)
@@ -1203,8 +1258,8 @@ void renderLead(const Settings &s, int intervalIndex, int noNewNotesAfter,
     BotVoice::renderLead(out + at, std::min(numSamples - at, held + tail), held,
                          s.sampleRate, BotVoice::midiToHz((double)line[step]),
                          velocity, patch,
-                         saltedSeed(Voice::Lead, s.seed) +
-                             613u * (std::uint32_t)step);
+                         performanceSeed(Voice::Lead, s, intervalIndex,
+                                         613u * (std::uint32_t)step));
   }
 
   // And the note that was still ringing when the last interval ended, for the
@@ -1243,8 +1298,8 @@ void renderLead(const Settings &s, int intervalIndex, int noNewNotesAfter,
         BotVoice::renderLead(scratch.data(), held + tail, held, s.sampleRate,
                              BotVoice::midiToHz((double)previous[(size_t)lastStep]),
                              velocity, patch,
-                             saltedSeed(Voice::Lead, s.seed) +
-                                 613u * (std::uint32_t)lastStep);
+                             performanceSeed(Voice::Lead, s, intervalIndex,
+                                             613u * (std::uint32_t)lastStep));
 
         const int carried = std::min(numSamples, tail);
         for (int i = 0; i < carried; ++i)
@@ -1503,10 +1558,10 @@ void renderInterval(Voice voice, const Settings &s, int intervalIndex,
       renderDrums(s, intervalIndex, phase, out, right, numSamples);
       break;
     case Voice::Bass:
-      renderBass(s, out, numSamples);
+      renderBass(s, intervalIndex, out, numSamples);
       break;
     case Voice::Keys:
-      renderKeys(s, out, right, numSamples);
+      renderKeys(s, intervalIndex, out, right, numSamples);
       break;
     case Voice::Lead:
       renderLead(s, intervalIndex, leadStops, out, numSamples);

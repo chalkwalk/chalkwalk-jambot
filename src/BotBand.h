@@ -153,10 +153,16 @@ struct Onset {
 struct Part {
   int steps = 0;
   int stepsPerBeat = 1;
+  int phrase = 0; // the period; equal to `steps` when nothing repeats
   std::vector<Onset> onsets;
 };
 
 Part part(const Settings &s);
+
+// The part with an explicit period, so a test can pin the identity case -- a
+// phrase as long as the interval must be the band as it was -- and so a tool
+// can render a phrase length the seed did not choose.
+Part partWithPhrase(const Settings &s, int phrase);
 
 // How long the part is before it repeats, in fine steps.
 //
@@ -263,6 +269,17 @@ enum class Hold {
 // unchanged so that existing call sites keep their exact values.
 std::uint32_t figureSeed(Voice v, const Settings &s, Hold hold,
                          int intervalIndex, std::uint32_t salt = 0);
+
+// The seed for a decision about HOW something is played -- the per-hit noise,
+// the drift, the velocity variation.
+//
+// Different every interval, which `figureSeed` at `Hold::Session` deliberately
+// is not. Before this the two were the same value, so every interval was
+// jittered identically and what made two consecutive drum intervals differ was
+// the hat rotation and nothing else. A phrase that returns played exactly the
+// same way twice is a loop; played fractionally differently it is a band.
+std::uint32_t performanceSeed(Voice v, const Settings &s, int intervalIndex,
+                              std::uint32_t salt = 0);
 
 BotVoice::BassTechnique bassTechnique(const Settings &s);
 

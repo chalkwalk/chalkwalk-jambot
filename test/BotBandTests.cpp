@@ -537,7 +537,12 @@ public:
       for (std::uint32_t seed = 1; seed <= 20; ++seed)
         for (int bpi : {8, 16}) {
           const auto s = settingsFor("C major", 120, bpi, seed);
-          const auto part = BotBand::Foundation::part(s);
+          // The IDENTITY phrase. Once a part can tile, its kick is the tiled
+          // kick and no longer `figureFor(Drums)` -- that is the feature, not
+          // a regression -- so the claim about containment is made where the
+          // two are still comparable.
+          const auto part = BotBand::Foundation::partWithPhrase(
+              s, BotBand::Foundation::part(s).steps);
           const auto kick = BotBand::figureFor(BotBand::Voice::Drums, s);
 
           expect(!part.onsets.empty(),
@@ -616,7 +621,12 @@ public:
       for (std::uint32_t seed = 1; seed <= 40; ++seed)
         for (int bpi : {8, 16, 32}) {
           const auto s = settingsFor("C major", 120, bpi, seed);
-          const auto part = BotBand::Foundation::part(s);
+          // At the identity phrase, where the old formula and the new
+          // selection are still answering the same question. This is the
+          // guard that proves the stratum extraction never drifted, and it
+          // stays meaningful only where nothing tiles.
+          const auto part = BotBand::Foundation::partWithPhrase(
+              s, BotBand::Foundation::part(s).steps);
           const auto kickFigure = BotBand::figureFor(BotBand::Voice::Drums, s);
           const auto selected =
               BotBand::Foundation::select(part, Selection::Kick);
@@ -639,6 +649,48 @@ public:
             expectEquals(now[i], was[i],
                          "kick " + std::to_string(i) + " moved at seed " +
                              std::to_string(seed));
+        }
+    }
+
+    beginTest("a phrase as long as the interval is the band as it was");
+    {
+      // The identity case, and the baseline every other phrase length is
+      // judged against. If this drifts there is nothing to judge them by.
+      for (std::uint32_t seed = 1; seed <= 10; ++seed)
+        for (int bpi : {8, 16}) {
+          const auto s = settingsFor("C major", 120, bpi, seed);
+          const auto whole = BotBand::Foundation::partWithPhrase(
+              s, BotBand::Foundation::part(s).steps);
+          const auto bass = BotBand::figureFor(BotBand::Voice::Bass, s);
+          const auto kick = BotBand::figureFor(BotBand::Voice::Drums, s);
+
+          // Rebuilt from the figures directly: what the part was before it
+          // could tile.
+          std::vector<int> expected;
+          const int spb = std::max(1, bass.steps / bpi);
+          const auto layout = Harmony::layoutChart(s.chart, bpi);
+          for (int step = 0; step < bass.steps; ++step) {
+            const bool onChange =
+                step == 0 ||
+                (step * Harmony::kStepsPerBeat % spb == 0 &&
+                 Harmony::changesAtStep(layout,
+                                        step * Harmony::kStepsPerBeat / spb));
+            const bool onKick =
+                step % spb == 0 &&
+                chalkwalk::music::hit(step / spb, kick.steps, kick.pulses,
+                                      kick.rotation);
+            if (onChange || onKick ||
+                chalkwalk::music::hit(step, bass.steps, bass.pulses,
+                                      bass.rotation))
+              expected.push_back(step);
+          }
+
+          expectEquals((int)whole.onsets.size(), (int)expected.size(),
+                       "seed " + std::to_string(seed) + " bpi " +
+                           std::to_string(bpi));
+          for (std::size_t i = 0;
+               i < expected.size() && i < whole.onsets.size(); ++i)
+            expectEquals(whole.onsets[i].step, expected[i]);
         }
     }
 
@@ -703,6 +755,132 @@ public:
       }
       expect(chosen.size() > 1,
              "every seed chose the same fraction, so the seed does nothing");
+    }
+
+    beginTest("a tiled part repeats its kick with the phrase");
+    {
+      // What replaces the containment claim above once a part can tile: the
+      // kick marks are the same in every tile, at the same offset.
+      using BotBand::Foundation::Selection;
+      for (std::uint32_t seed = 1; seed <= 30; ++seed) {
+        const auto s = settingsFor("C major", 120, 16, seed);
+        const auto part = BotBand::Foundation::part(s);
+        if (part.phrase >= part.steps)
+          continue; // nothing tiled at this seed
+
+        const auto kicks = BotBand::Foundation::select(part, Selection::Kick);
+        std::set<int> firstTile;
+        for (const auto &o : kicks)
+          if (o.step < part.phrase)
+            firstTile.insert(o.step);
+
+        for (int tile = 1; tile * part.phrase < part.steps; ++tile) {
+          std::set<int> here;
+          for (const auto &o : kicks)
+            if (o.step >= tile * part.phrase &&
+                o.step < (tile + 1) * part.phrase)
+              here.insert(o.step - tile * part.phrase);
+          expect(here == firstTile,
+                 "tile " + std::to_string(tile) + " differs at seed " +
+                     std::to_string(seed));
+        }
+      }
+    }
+
+    beginTest("a phrase that returns returns the same figure");
+    {
+      // Onsets that are not chord changes must recur at the same offset in
+      // every tile. Changes are exempt: the harmony is deliberately not tiled
+      // with the figure, which is what makes a repeat adapt to the changes.
+      const auto s = settingsFor("C major", 120, 16, 9);
+      const auto part = BotBand::Foundation::partWithPhrase(s, 16);
+      std::set<int> firstTile, secondTile;
+      for (const auto &o : part.onsets) {
+        if (o.onChange)
+          continue;
+        if (o.step < 16)
+          firstTile.insert(o.step);
+        else if (o.step < 32)
+          secondTile.insert(o.step - 16);
+      }
+      expect(!firstTile.empty(), "no onsets to compare");
+      expect(firstTile == secondTile, "the phrase did not repeat");
+    }
+
+    beginTest("a repeating phrase never skips a chord change");
+    {
+      // The failure mode tiling could introduce: a riff that repeats straight
+      // past a change, so the first thing heard over a new chord is whatever
+      // the phrase happened to say. The bass has to land on the change --
+      // that is the note the part exists to state -- and it must stay true at
+      // every phrase length, not just the ones a seed picks.
+      for (int bpi : {8, 16, 32})
+        for (std::uint32_t seed = 1; seed <= 20; ++seed) {
+          const auto s = settingsFor("C major", 120, bpi, seed);
+          const auto steps = BotBand::Foundation::part(s).steps;
+          for (int frac : {1, 2, 4}) {
+            const auto part =
+                BotBand::Foundation::partWithPhrase(s, steps / frac);
+            const int spb = part.stepsPerBeat;
+            const auto layout = Harmony::layoutChart(s.chart, bpi);
+
+            for (int step = 0; step < part.steps; ++step) {
+              const bool changes =
+                  step == 0 ||
+                  (step * Harmony::kStepsPerBeat % spb == 0 &&
+                   Harmony::changesAtStep(layout,
+                                          step * Harmony::kStepsPerBeat / spb));
+              if (!changes)
+                continue;
+              bool found = false;
+              for (const auto &o : part.onsets)
+                if (o.step == step && o.onChange)
+                  found = true;
+              expect(found, "no bass note on a chord change at step " +
+                                std::to_string(step) + ", phrase 1/" +
+                                std::to_string(frac) + ", bpi " +
+                                std::to_string(bpi));
+            }
+          }
+        }
+    }
+
+    beginTest("the performance varies while the figure does not");
+    {
+      // The interlock the roadmap flags: repetition is identical in its figure
+      // and never in its performance. The BASS is the one to ask, because it
+      // has no hat rotation to carry the difference for it -- if two of its
+      // intervals differ it is the performance seed that did it.
+      const auto s = settingsFor("C major", 120, 16, 4);
+
+      const auto a = render(BotBand::Voice::Bass, s, 0);
+      const auto b = render(BotBand::Voice::Bass, s, 1);
+      expect(a != b, "the bass played two intervals identically");
+
+      // The part is a figure decision, so it takes no interval index at all:
+      // the same settings must give the same onsets, every time.
+      const auto one = BotBand::Foundation::part(s);
+      const auto two = BotBand::Foundation::part(s);
+      expectEquals((int)two.onsets.size(), (int)one.onsets.size());
+      for (std::size_t i = 0; i < one.onsets.size() && i < two.onsets.size();
+           ++i) {
+        expectEquals(two.onsets[i].step, one.onsets[i].step);
+        expect(two.onsets[i].fromKick == one.onsets[i].fromKick);
+      }
+    }
+
+    beginTest("every voice's performance moves between intervals");
+    {
+      // performanceSeed reaches all four. A voice that did not move is a call
+      // site somebody missed.
+      const auto s = settingsFor("C major", 120, 16, 21);
+      for (auto voice : {BotBand::Voice::Drums, BotBand::Voice::Bass,
+                         BotBand::Voice::Keys, BotBand::Voice::Lead}) {
+        const auto a = render(voice, s, 0);
+        const auto b = render(voice, s, 1);
+        expect(a != b, juce::String(BotBand::voiceName(voice)).toStdString() +
+                           " rendered two intervals identically");
+      }
     }
 
     beginTest("the part is at the bass's resolution, not the kick's");
