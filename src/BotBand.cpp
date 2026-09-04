@@ -220,6 +220,49 @@ std::vector<Onset> select(const Part &p, Selection how) {
   return out;
 }
 
+int phraseSteps(const Settings &s) {
+  const Figure f = figureFor(Voice::Bass, s);
+  const int steps = f.steps;
+  if (steps <= 0)
+    return 1;
+
+  // Divisors of the part, and never shorter than a BAR.
+  //
+  // A beat was the first floor written here and it is far too weak: measured
+  // over 200 seeds at bpi 32, one seed in six chose a phrase of one beat
+  // repeated thirty-two times, which is a metronome rather than a riff. A
+  // phrase is a whole number of bars in every music this band is imitating, so
+  // the bar is the floor -- and with the default four-bar chart that leaves
+  // the whole interval, a half and a quarter, which are the three answers
+  // anybody would have chosen by hand.
+  const int stepsPerBeat = std::max(1, steps / std::max(1, s.bpi));
+  const int bars = std::max(1, (int)s.chart.size());
+  const int floorSteps = std::max(stepsPerBeat, steps / bars);
+  std::vector<int> candidates;
+  for (int p = steps; p >= floorSteps; --p)
+    if (steps % p == 0)
+      candidates.push_back(p);
+  if (candidates.empty())
+    return steps;
+
+  // The chart first, where it has something to say. A repeat that lands on the
+  // chord it landed on last time is a riff; one that does not is a riff being
+  // dragged across the changes, which is a choice rather than a default.
+  const int period = Harmony::chartPeriod(s.chart);
+  if (!s.chart.empty() && period > 0 && period < (int)s.chart.size() &&
+      (steps * period) % (int)s.chart.size() == 0) {
+    const int wanted = steps * period / (int)s.chart.size();
+    for (int c : candidates)
+      if (c == wanted)
+        return c;
+  }
+
+  // Otherwise the seed picks. Held for the session, like every other decision
+  // about WHAT is played.
+  Rng rng(figureSeed(Voice::Bass, s, Hold::Session, 0) ^ 0x5EED17u);
+  return candidates[(size_t)rng.range(0, (int)candidates.size() - 1)];
+}
+
 } // namespace Foundation
 
 std::uint32_t saltedSeed(Voice voice, std::uint32_t seed) {

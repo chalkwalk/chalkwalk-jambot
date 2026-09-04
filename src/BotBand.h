@@ -158,6 +158,17 @@ struct Part {
 
 Part part(const Settings &s);
 
+// How long the part is before it repeats, in fine steps.
+//
+// Equal to `part(s).steps` when the figure spans the interval, which is what
+// the band did before phrases existed -- so that value is the identity case,
+// and it is asserted to render byte-identically.
+//
+// It must DIVIDE the part's steps, or the last repetition is cut off mid-idea.
+// Nothing else bounds it: there is no form yet, so a phrase longer than an
+// interval has nothing to mean until one exists.
+int phraseSteps(const Settings &s);
+
 // How a member relates to the shared part. The rule behind the three is one
 // rule: a member's figure is a function of the part, never an independent idea
 // (docs/BOT-CHAT.md section 16.2, as amended).

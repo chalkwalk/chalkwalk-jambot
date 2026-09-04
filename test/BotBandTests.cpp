@@ -3,6 +3,7 @@
 #include "../src/BotVoice.h"
 #include <chalkwalk/music/Euclidean.h>
 #include <map>
+#include <set>
 #include "JuceUnitShim.h"
 
 #include <chalkwalk/dsp/Loudness.h>
@@ -639,6 +640,69 @@ public:
                          "kick " + std::to_string(i) + " moved at seed " +
                              std::to_string(seed));
         }
+    }
+
+    beginTest("a phrase divides the interval, and can be the whole of it");
+    {
+      for (std::uint32_t seed = 1; seed <= 40; ++seed)
+        for (int bpi : {8, 16, 32}) {
+          const auto s = settingsFor("C major", 120, bpi, seed);
+          const auto part = BotBand::Foundation::part(s);
+          const int p = BotBand::Foundation::phraseSteps(s);
+
+          expect(p > 0, "a phrase of no length at seed " + std::to_string(seed));
+          expect(p <= part.steps, "a phrase longer than the interval");
+          expectEquals(part.steps % p, 0,
+                       "a phrase that does not tile: " + std::to_string(p) +
+                           " into " + std::to_string(part.steps));
+        }
+    }
+
+    beginTest("a repeating chart gives a phrase the length of its repeat");
+    {
+      // | I | V | I | V | over sixteen beats: the chart repeats every two
+      // bars, which is half the interval, so the part should too.
+      auto s = settingsFor("C major", 120, 16, 5);
+      const auto key = keyOf("C major");
+      s.chart = {Harmony::Bar{{Harmony::diatonicTriad(key, 0)}},
+                 Harmony::Bar{{Harmony::diatonicTriad(key, 4)}},
+                 Harmony::Bar{{Harmony::diatonicTriad(key, 0)}},
+                 Harmony::Bar{{Harmony::diatonicTriad(key, 4)}}};
+      const auto part = BotBand::Foundation::part(s);
+      expectEquals(BotBand::Foundation::phraseSteps(s), part.steps / 2);
+    }
+
+    beginTest("a phrase is never shorter than a bar");
+    {
+      // A beat was the first floor and it was far too weak: at bpi 32 one seed
+      // in six chose a one-beat phrase repeated thirty-two times, which is a
+      // metronome. Measured, not guessed, and this is what stops it coming
+      // back.
+      for (std::uint32_t seed = 1; seed <= 60; ++seed)
+        for (int bpi : {8, 16, 32}) {
+          const auto s = settingsFor("C major", 120, bpi, seed);
+          const auto part = BotBand::Foundation::part(s);
+          const int bars = std::max(1, (int)s.chart.size());
+          const int oneBar = part.steps / bars;
+          expect(BotBand::Foundation::phraseSteps(s) >= oneBar,
+                 "a phrase shorter than a bar at bpi " + std::to_string(bpi) +
+                     " seed " + std::to_string(seed));
+        }
+    }
+
+    beginTest("the default chart falls back to a seed-chosen fraction");
+    {
+      // I V vi IV does not repeat inside itself, so the chart says nothing and
+      // the seed chooses. Across seeds it must choose more than one answer, or
+      // the fallback is a constant wearing a seed's clothes.
+      std::set<int> chosen;
+      for (std::uint32_t seed = 1; seed <= 60; ++seed) {
+        const auto s = settingsFor("C major", 120, 16, seed);
+        const auto part = BotBand::Foundation::part(s);
+        chosen.insert(part.steps / BotBand::Foundation::phraseSteps(s));
+      }
+      expect(chosen.size() > 1,
+             "every seed chose the same fraction, so the seed does nothing");
     }
 
     beginTest("the part is at the bass's resolution, not the kick's");
