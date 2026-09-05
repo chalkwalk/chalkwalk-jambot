@@ -124,16 +124,47 @@ play with -- and because weights are not readable (`JAMBOT §12`).
 Recorded here because a bank is *shipped*, which makes its licence a fact about
 the product rather than about the reading.
 
-- **MuseScore_General.sf3** -- **MIT**, about 36 MB. Lineage is documented:
-  FluidR3 by Frank Wen (2000-02), mono conversion by Michael Cowgill (2014-17),
-  adapted by S. Christian Collins (2018-19), with named contributions from Ethan
-  Winer and Michael Schorsch. <https://musescore.org/en/node/317991>
-- **GeneralUser GS** -- permissive for use, **not recommended for
-  redistribution here.** Its own documentation states the author "cannot be 100%
-  sure where all of the samples originated" and flags this as a concern for use
-  in a software product. Free to use; we would be shipping it, which is a
-  different question.
+**The bank is GeneralUser GS, and the decision is the ecosystem's rather than
+this repository's.** It was made for Lockstep and is recorded with its
+reasoning and its measurements in that project's `ROADMAP.md`; the same bank,
+the same argument and the same caveats apply here, and a second answer to one
+question is one too many.
+
+- **GeneralUser GS v2.0.3** (`mrbumpy409/GeneralUser-GS`) -- 30.82 MB SF2,
+  **261 presets, 13 drum kits**, counted against the real files rather than the
+  documentation. Its licence permits use, modification and bundling, and asks
+  that we host our own copy rather than hotlink.
+
+  **Two caveats belong in the shipped licence file, not only here.** It is
+  permissive but **not an OSI/DFSG-free licence**, which matters to anyone
+  packaging for a distribution. And the author states he cannot fully vouch for
+  every sample's origin -- the samples were freely available when the bank was
+  assembled; some simply predate formal CC0 assignment. The risk was judged
+  minimal *with that stated plainly around it*, which is the condition rather
+  than a footnote.
+
+  It is bundled **data**, not linked code, so it does not entangle a GPLv3
+  binary.
+
   <https://github.com/mrbumpy409/GeneralUser-GS/blob/main/documentation/README.md>
+
+- **It wants FluidLite specifically.** GeneralUser GS leans hard on SoundFont
+  modulators; under TSF it plays, but wrong. That is a fact about the bank and
+  the reason `chalkwalk-soundfont` exists in the shape it does.
+
+- **SF3 quality: q0.8, about 10 MB**, chosen by ear over the whole converted
+  ladder rather than off the size column. Measured for Lockstep and not
+  re-measured here. Note that RAM is *not* reduced: FluidLite decodes every
+  Vorbis sample to 16-bit PCM at load.
+
+**Considered and not chosen: MuseScore_General.sf3** (MIT, ~36 MB, lineage
+documented -- FluidR3 by Frank Wen, mono conversion by Michael Cowgill, adapted
+by S. Christian Collins). Cleaner licence on paper, and it was recommended here
+before the Lockstep decision was found. It loses on the two things that
+actually decide it: the ecosystem already ships GeneralUser GS with its
+modulator behaviour verified under FluidLite, and one bank across the projects
+is worth more than a marginally tidier licence in one of them.
+<https://musescore.org/en/node/317991>
 
 `chalkwalk-soundfont` is where the loading of these lives, with its own patched
 FluidLite; this entry is about which bank and why, not about how it is read.
