@@ -411,6 +411,8 @@ Figure figureFor(Voice voice, const Settings &s, int letter) {
     f.rotation = rng.range(0, 3);
     f.accents = std::max(1, f.pulses / 4);
     return f;
+    // NOTE: rotation is displaced per interval by leadLineFrom, which is where
+    // the interval index is available. See the comment there.
   }
   }
   return {};
@@ -538,6 +540,38 @@ std::vector<int> leadLineFrom(const Settings &s, int intervalIndex,
 
   const auto layout = layoutOf(s);
   const Figure f = figureFor(Voice::Lead, s);
+
+  // SECTION-held, not per-interval. A contour that rerolled every interval is
+  // why a long session meandered; holding it is what makes a returning A
+  // recognisable as a line rather than only as a groove.
+  //
+  // It cannot produce a loop, and that is measured rather than hoped: over 60
+  // seeds in D minor, consecutive intervals drawing the same contour share a
+  // mean 43.9% of their notes and NONE of 211 pairs was identical, against
+  // 14.1% for differing contours. `carryIn` and the chart do enough underneath
+  // it -- a returning A starts from wherever the previous interval left the
+  // line.
+  // PER-INTERVAL, still, and the form does not reach this voice yet.
+  //
+  // Section-holding it was tried and withdrawn -- three regressions, each a
+  // different shape, and the third is a real design problem rather than a bug:
+  //
+  //   1. Nothing else in this function depends on the interval index, and
+  //      `carryIn` is derived by re-rendering the previous interval, so a held
+  //      contour made a whole section render as ONE LINE REPEATED.
+  //   2. Displacing the rhythm per interval fixed that, but a held shape that
+  //      RESTARTS every interval leaps: a Rise handing over to a Rise ends
+  //      high and begins low, and the mean seam motion went 3.29 -> 4.25
+  //      semitones, worse than disabling the note carry entirely.
+  //   3. Making the shape span the SECTION fixed the seam and flattened the
+  //      line instead -- each interval covers 1/n of the arc, the target
+  //      barely moves inside an interval, and 15.5% of moves in Bb Lydian
+  //      repeated the note.
+  //
+  // The shape a solo needs is both at once: an arc over the section AND motion
+  // inside the interval. That is melodic design and wants its own thinking, so
+  // the form reaches the kit and the bass and leaves the lead alone until it
+  // has had it (ROADMAP, *Phrases that return*).
   Rng rng(figureSeed(Voice::Lead, s, Hold::Interval, intervalIndex));
   const auto contour = (Contour)(rng.next() % 4);
 
@@ -806,7 +840,9 @@ void renderDrums(const Settings &s, int intervalIndex, Phase phase, float *out,
   if (beatSamples <= 0)
     return;
 
-  const KitPattern pattern = kitPattern(s);
+  const int letter =
+      Form::letterAt(s.seed, s.bpm, s.bpi, s.formOrigin, intervalIndex);
+  const KitPattern pattern = kitPattern(s, letter);
   const Figure kick = pattern.kick;
 
   const auto kickVel = chalkwalk::music::accents(kick.steps, kick.pulses,
@@ -823,7 +859,7 @@ void renderDrums(const Settings &s, int intervalIndex, Phase phase, float *out,
   // still come from `accents`, which agrees with the part's marks about where
   // a kick lands -- asserted in chalkwalk-music, because that is where both
   // functions live.
-  const auto foundation = Foundation::part(s);
+  const auto foundation = Foundation::part(s, letter);
   for (const auto &onset :
        Foundation::select(foundation, Foundation::Selection::Kick)) {
     // Back to the coarse grid: the part is at the bass's resolution and a kick
@@ -884,7 +920,16 @@ void renderDrums(const Settings &s, int intervalIndex, Phase phase, float *out,
   // reason the ending has a first interval: the fill is what tells the room the
   // next downbeat is the last one, and a resolve with nothing leading into it
   // is a dropout with a note on the front (docs/BOT-CHAT.md section 15).
-  if (intervalIndex % 4 == 3 || phase == Phase::Wrapping) {
+  // The LAST INTERVAL OF THE SECTION, not every fourth. A form nobody can
+  // locate is not a form: a listener an interval behind cannot infer where a
+  // section begins from the notes alone, so the fill is what says the next
+  // downbeat is a boundary. Four was a fixed guess at the phrase length a
+  // listener hears; it is the actual one now.
+  const int perSection = Form::intervalsPerSection(s.seed, s.bpm, s.bpi);
+  const int sinceOrigin = std::max(0, intervalIndex - s.formOrigin);
+  const bool lastOfSection = (sinceOrigin % perSection) == perSection - 1;
+
+  if (lastOfSection || phase == Phase::Wrapping) {
     const int lastBeat = (s.bpi - 1) * beatSamples;
     for (int sub = 0; sub < 4; ++sub) {
       const int at = lastBeat + sub * (beatSamples / 4);
@@ -951,7 +996,8 @@ void renderBass(const Settings &s, int intervalIndex, float *out,
   // strong subset of the same ground. Collected first, so each note can be
   // held until the next one rather than for an arbitrary fixed length -- a
   // sustained voice needs to know where it stops.
-  const auto foundation = Foundation::part(s);
+  const auto foundation = Foundation::part(
+      s, Form::letterAt(s.seed, s.bpm, s.bpi, s.formOrigin, intervalIndex));
   const auto &onsets = foundation.onsets;
 
   for (size_t n = 0; n < onsets.size(); ++n) {

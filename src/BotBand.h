@@ -141,6 +141,7 @@ struct Figure {
 // asked (`Form::letterAt`).
 Figure figureFor(Voice voice, const Settings &s, int letter = 0);
 
+
 // The foundation stratum: the kit and the bass, and the one rhythmic ground
 // they both play from (docs/BOT-CHAT.md section 16.1).
 //

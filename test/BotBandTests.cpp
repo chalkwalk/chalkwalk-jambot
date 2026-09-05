@@ -1,6 +1,7 @@
 #include "../src/BandPatch.h"
 #include "../src/BotBand.h"
 #include "../src/BotVoice.h"
+#include "../src/Form.h"
 #include <chalkwalk/music/Euclidean.h>
 #include <map>
 #include <set>
@@ -1760,20 +1761,102 @@ public:
       }
     }
 
-    beginTest("a fill lands every fourth interval and not otherwise");
+    beginTest("a fill lands on the last interval of a section");
     {
+      // It used to land every fourth interval, and four was a fixed guess at
+      // the phrase length a listener hears whether or not anyone intended one.
+      // Now it IS the phrase length: a form nobody can locate is not a form,
+      // and the fill is what says the next downbeat is a boundary.
       const auto s = settingsFor("C major", 120, 8);
       const int beat = (int)(s.sampleRate * 60.0 / s.bpm);
       const int lastBeat = (s.bpi - 1) * beat;
+      const int n = Form::intervalsPerSection(s.seed, s.bpm, s.bpi);
 
       const auto plain = render(BotBand::Voice::Drums, s, 0);
-      const auto filled = render(BotBand::Voice::Drums, s, 3);
+      const auto filled = render(BotBand::Voice::Drums, s, n - 1);
 
       const float plainEnd = rms(plain, lastBeat, lastBeat + beat);
       const float filledEnd = rms(filled, lastBeat, lastBeat + beat);
       expect(filledEnd > plainEnd,
-             "the fill added nothing: " + juce::String(plainEnd) + " -> " +
+             "no fill on the last interval of a section of " +
+                 std::to_string(n) + ": " + juce::String(plainEnd) + " -> " +
                  juce::String(filledEnd));
+
+      // And not on the first, or the boundary would be everywhere.
+      expect(n < 2 || rms(render(BotBand::Voice::Drums, s, 0), lastBeat,
+                          lastBeat + beat) < filledEnd,
+             "the first interval of a section filled too");
+    }
+
+    beginTest("the fill follows the origin, not the absolute index");
+    {
+      // A form that restarts has to take its turnaround with it.
+      auto s = settingsFor("C major", 120, 8);
+      const int beat = (int)(s.sampleRate * 60.0 / s.bpm);
+      const int lastBeat = (s.bpi - 1) * beat;
+      const int n = Form::intervalsPerSection(s.seed, s.bpm, s.bpi);
+
+      s.formOrigin = 5;
+      const float atBoundary =
+          rms(render(BotBand::Voice::Drums, s, 5 + n - 1), lastBeat,
+              lastBeat + beat);
+      const float insideSection =
+          rms(render(BotBand::Voice::Drums, s, 5), lastBeat, lastBeat + beat);
+      expect(atBoundary > insideSection,
+             "the fill ignored the form origin");
+    }
+
+    beginTest("a section returns to its own groove");
+    {
+      // The whole point of a form: the A after the B is the A from before it.
+      const auto s = settingsFor("C major", 100, 16, 12);
+      const int n = Form::intervalsPerSection(s.seed, s.bpm, s.bpi);
+      const auto table = Form::table(s.seed);
+
+      int laterA = -1;
+      bool seenOther = false;
+      for (int i = n; i < n * (int)table.size() * 2 && laterA < 0; i += n) {
+        const int letter = Form::letterAt(s.seed, s.bpm, s.bpi, 0, i);
+        if (letter != 0)
+          seenOther = true;
+        else if (seenOther)
+          laterA = i;
+      }
+      expect(laterA > 0, "the table never left A and came back");
+
+      const auto first = BotBand::figureFor(BotBand::Voice::Bass, s, 0);
+      const auto back = BotBand::figureFor(
+          BotBand::Voice::Bass, s,
+          Form::letterAt(s.seed, s.bpm, s.bpi, 0, laterA));
+      expectEquals(back.pulses, first.pulses,
+                   "the returning A was not A's own figure");
+    }
+
+    beginTest("the lead keeps developing inside a section");
+    {
+      // THE TEST THAT CAUGHT IT. Section-holding the lead's contour was tried
+      // and withdrawn, and this is what failed: everything in leadLineFrom
+      // depends on the interval index only through the contour, and carryIn is
+      // derived by re-rendering the previous interval, so holding the contour
+      // made a whole section render as ONE LINE REPEATED.
+      //
+      // The contour is per-interval again, so this passes for the reason it
+      // always did. It is kept pointed at the section anyway: whatever
+      // eventually gives the lead a form has to keep this true, and the next
+      // person to try will find out here rather than by ear.
+      const auto s = settingsFor("C major", 100, 16, 12);
+      const int n = Form::intervalsPerSection(s.seed, s.bpm, s.bpi);
+      expect(n >= 2, "a section of one interval cannot show this");
+
+      for (int i = 0; i + 1 < n; ++i) {
+        const auto a = BotBand::leadLine(s, i);
+        const auto b = BotBand::leadLine(s, i + 1);
+        expectEquals(Form::letterAt(s.seed, s.bpm, s.bpi, 0, i),
+                     Form::letterAt(s.seed, s.bpm, s.bpi, 0, i + 1),
+                     "the test walked out of its own section");
+        expect(a != b, "interval " + std::to_string(i) +
+                           " and the next played the same line");
+      }
     }
 
     beginTest("consecutive intervals are not bit-identical");
