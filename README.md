@@ -2,6 +2,12 @@
 
 Bots that play in a NINJAM room, and answer when you talk to them. JUCE-free, MIT.
 
+**A band for one player who wanted to jam and found nobody there.** Not a
+composer, not a backing track. `docs/PRINCIPLES.md` is the twelve rules that
+follow from that, `docs/NON-GOALS.md` is what they refuse and what to reach for
+instead, and `docs/BOT-CHAT.md` is the long argument behind both -- read the
+short ones first.
+
 They hold a key and a chord chart, render a part per interval on the beat grid
 the room is running, and read the room's chat well enough to be asked things:
 what key are we in, can we slow down, play something else, stop, start again.

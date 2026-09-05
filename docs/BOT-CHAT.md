@@ -1,5 +1,10 @@
 # Bots that talk
 
+> **Read `PRINCIPLES.md` and `NON-GOALS.md` first.** They are the short form of
+> what this file argues at length, and where the two disagree the principles
+> win -- much of this document predates them and some of it was overtaken by
+> what got built.
+
 **Status: a proposal for review. Nothing here is built.** It is written to be
 argued with; the open questions at the end are the parts I think are genuinely
 undecided rather than merely unwritten.
