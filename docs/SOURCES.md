@@ -121,50 +121,19 @@ play with -- and because weights are not readable (`JAMBOT §12`).
 
 ### SoundFont banks
 
-Recorded here because a bank is *shipped*, which makes its licence a fact about
-the product rather than about the reading.
+**Not described here. `chalkwalk-soundfont` holds the bank and everything true
+about it** -- `bank/README.md` for provenance, the by-ear quality choice and the
+three SF3 facts that each cost somebody a day, and `THIRDPARTY.md` for the
+licence, which is *not* that repository's own and carries two conditions worth
+reading before shipping anything.
 
-**The bank is GeneralUser GS, and the decision is the ecosystem's rather than
-this repository's.** It was made for Lockstep and is recorded with its
-reasoning and its measurements in that project's `ROADMAP.md`; the same bank,
-the same argument and the same caveats apply here, and a second answer to one
-question is one too many.
+The one-line version: **GeneralUser GS v2.0.3**, SF3 at q0.8, 10.07 MB, 261
+presets and 13 drum kits, sha256 `d50ab6b2...`. Decided for Lockstep, bundled
+once, and used unchanged here.
 
-- **GeneralUser GS v2.0.3** (`mrbumpy409/GeneralUser-GS`) -- 30.82 MB SF2,
-  **261 presets, 13 drum kits**, counted against the real files rather than the
-  documentation. Its licence permits use, modification and bundling, and asks
-  that we host our own copy rather than hotlink.
-
-  **Two caveats belong in the shipped licence file, not only here.** It is
-  permissive but **not an OSI/DFSG-free licence**, which matters to anyone
-  packaging for a distribution. And the author states he cannot fully vouch for
-  every sample's origin -- the samples were freely available when the bank was
-  assembled; some simply predate formal CC0 assignment. The risk was judged
-  minimal *with that stated plainly around it*, which is the condition rather
-  than a footnote.
-
-  It is bundled **data**, not linked code, so it does not entangle a GPLv3
-  binary.
-
-  <https://github.com/mrbumpy409/GeneralUser-GS/blob/main/documentation/README.md>
-
-- **It wants FluidLite specifically.** GeneralUser GS leans hard on SoundFont
-  modulators; under TSF it plays, but wrong. That is a fact about the bank and
-  the reason `chalkwalk-soundfont` exists in the shape it does.
-
-- **SF3 quality: q0.8, about 10 MB**, chosen by ear over the whole converted
-  ladder rather than off the size column. Measured for Lockstep and not
-  re-measured here. Note that RAM is *not* reduced: FluidLite decodes every
-  Vorbis sample to 16-bit PCM at load.
-
-**Considered and not chosen: MuseScore_General.sf3** (MIT, ~36 MB, lineage
-documented -- FluidR3 by Frank Wen, mono conversion by Michael Cowgill, adapted
-by S. Christian Collins). Cleaner licence on paper, and it was recommended here
-before the Lockstep decision was found. It loses on the two things that
-actually decide it: the ecosystem already ships GeneralUser GS with its
-modulator behaviour verified under FluidLite, and one bank across the projects
-is worth more than a marginally tidier licence in one of them.
-<https://musescore.org/en/node/317991>
+Recorded as a pointer rather than a summary on purpose. A bank is *shipped*, so
+its licence is a fact about the product, and a fact about the product should
+have exactly one home -- this file's job is to say which.
 
 `chalkwalk-soundfont` is where the loading of these lives, with its own patched
 FluidLite; this entry is about which bank and why, not about how it is read.
