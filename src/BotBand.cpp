@@ -156,9 +156,9 @@ namespace Foundation {
 // the kick's onsets, the bass's own doubled figure and the chord changes IS
 // the foundation's ground -- it was simply private to one voice, so the kit
 // could not see the figure it was half of.
-Part partWithPhrase(const Settings &s, int phrase) {
+Part partWithPhrase(const Settings &s, int phrase, int letter) {
   Part p;
-  const Figure f = figureFor(Voice::Bass, s);
+  const Figure f = figureFor(Voice::Bass, s, letter);
   p.steps = f.steps;
   p.stepsPerBeat = std::max(1, f.steps / std::max(1, s.bpi));
   if (phrase <= 0 || p.steps % phrase != 0)
@@ -166,7 +166,7 @@ Part partWithPhrase(const Settings &s, int phrase) {
   p.phrase = phrase;
 
   const auto layout = layoutOf(s);
-  const Figure kick = figureFor(Voice::Drums, s);
+  const Figure kick = figureFor(Voice::Drums, s, letter);
   const int stepsPerBeat = p.stepsPerBeat;
   const int kickPhrase = std::max(1, phrase / stepsPerBeat);
 
@@ -226,7 +226,9 @@ Part partWithPhrase(const Settings &s, int phrase) {
   return p;
 }
 
-Part part(const Settings &s) { return partWithPhrase(s, phraseSteps(s)); }
+Part part(const Settings &s, int letter) {
+  return partWithPhrase(s, phraseSteps(s), letter);
+}
 
 std::vector<Onset> select(const Part &p, Selection how) {
   std::vector<Onset> out;
@@ -343,10 +345,17 @@ Settings defaults(const MusicalKey::Key &key, int bpm, int bpi,
   return s;
 }
 
-Figure figureFor(Voice voice, const Settings &s) {
+Figure figureFor(Voice voice, const Settings &s, int letter) {
   switch (voice) {
-  case Voice::Drums:
-    return kickFigure(s);
+  case Voice::Drums: {
+    Figure f = kickFigure(s);
+    // The kick's own range, which kickFigure chose from: sparse enough to
+    // leave room, dense enough to be a groove.
+    f.pulses = Form::pulsesFor(f.pulses, 3, std::max(3, s.bpi / 2), letter,
+                               s.seed);
+    f.accents = std::max(1, f.pulses / 2);
+    return f;
+  }
 
   case Voice::Bass: {
     // Twice the kick's density, at twice its resolution -- a bass part has far
@@ -370,7 +379,7 @@ Figure figureFor(Voice voice, const Settings &s) {
     // what makes a kick a pulse you can rely on; movement is what a bass wants
     // and a kick does not.
     Rng rng(figureSeed(Voice::Bass, s, Hold::Session, 0));
-    const Figure kick = kickFigure(s);
+    const Figure kick = figureFor(Voice::Drums, s, letter);
     Figure f;
     f.steps = kick.steps * 2;
     f.pulses = chalkwalk::music::nearestCoprimePulses(f.steps, kick.pulses * 2,
@@ -719,9 +728,9 @@ struct KitPattern {
   int hatPulses = 1;
 };
 
-KitPattern kitPattern(const Settings &s) {
+KitPattern kitPattern(const Settings &s, int letter = 0) {
   KitPattern p;
-  p.kick = kickFigure(s);
+  p.kick = figureFor(Voice::Drums, s, letter);
   Rng rng(figureSeed(Voice::Drums, s, Hold::Session, 0) ^ 0xB5297A4DU);
 
   // The snare answers the kick rather than rolling its own: two onsets, half an
@@ -762,7 +771,10 @@ KitPattern kitPattern(const Settings &s) {
 // than a busy one while you are listening to it; what must not change is the
 // level you set surviving a shake.
 float kitDensityTrim(const Settings &s) {
-  const KitPattern p = kitPattern(s);
+  // Letter A deliberately, whatever section is playing. This corrects the
+  // SESSION -- the level you set has to survive a shake, and now a section
+  // too, or the kit would change loudness at every B.
+  const KitPattern p = kitPattern(s, 0);
   if (p.kick.pulses <= 0)
     return 1.0f;
 

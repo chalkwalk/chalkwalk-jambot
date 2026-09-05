@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Form.h"
 #include "Music.h"
 
 #include "BotVoice.h"
@@ -128,7 +129,11 @@ struct Figure {
   int accents = 1;
 };
 
-Figure figureFor(Voice voice, const Settings &s);
+// `letter` is the form's, where 0 is A and A is the tune's own figure. It is
+// defaulted so that every caller that has no opinion about the form -- the
+// answer path, the tests, the audition -- keeps asking the question it always
+// asked (`Form::letterAt`).
+Figure figureFor(Voice voice, const Settings &s, int letter = 0);
 
 // The foundation stratum: the kit and the bass, and the one rhythmic ground
 // they both play from (docs/BOT-CHAT.md section 16.1).
@@ -157,12 +162,12 @@ struct Part {
   std::vector<Onset> onsets;
 };
 
-Part part(const Settings &s);
+Part part(const Settings &s, int letter = 0);
 
 // The part with an explicit period, so a test can pin the identity case -- a
 // phrase as long as the interval must be the band as it was -- and so a tool
 // can render a phrase length the seed did not choose.
-Part partWithPhrase(const Settings &s, int phrase);
+Part partWithPhrase(const Settings &s, int phrase, int letter = 0);
 
 // How long the part is before it repeats, in fine steps.
 //

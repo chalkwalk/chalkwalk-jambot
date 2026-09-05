@@ -652,6 +652,59 @@ public:
         }
     }
 
+    beginTest("letter A is the band as it was");
+    {
+      // The identity that makes the whole form reviewable: whatever else a
+      // section does, A must be the tune this room already had.
+      for (std::uint32_t seed = 1; seed <= 20; ++seed)
+        for (int bpi : {8, 16}) {
+          const auto s = settingsFor("C major", 120, bpi, seed);
+          for (auto v : {BotBand::Voice::Drums, BotBand::Voice::Bass,
+                         BotBand::Voice::Keys, BotBand::Voice::Lead}) {
+            const auto a = BotBand::figureFor(v, s);
+            const auto b = BotBand::figureFor(v, s, 0);
+            expectEquals(b.steps, a.steps);
+            expectEquals(b.pulses, a.pulses);
+            expectEquals(b.rotation, a.rotation);
+            expectEquals(b.accents, a.accents);
+          }
+        }
+    }
+
+    beginTest("another letter moves the groove and not the harmony");
+    {
+      const auto s = settingsFor("C major", 120, 16, 3);
+      const auto a = BotBand::figureFor(BotBand::Voice::Drums, s, 0);
+      const auto b = BotBand::figureFor(BotBand::Voice::Drums, s, 1);
+      expect(a.pulses != b.pulses, "letter B played A's kick");
+      expectEquals(b.rotation, 0, "a section displaced the downbeat");
+      expectEquals(b.steps, a.steps, "a section changed the metre");
+
+      // The keys' pulses are one per chord, which is the harmony rather than a
+      // figure. A section must not touch it.
+      const auto ka = BotBand::figureFor(BotBand::Voice::Keys, s, 0);
+      const auto kb = BotBand::figureFor(BotBand::Voice::Keys, s, 1);
+      expectEquals(kb.pulses, ka.pulses, "a section changed the harmony");
+    }
+
+    beginTest("the bass follows the kick into the section");
+    {
+      // The bass is derived from the kick by doubling, so one letter has to
+      // move both or the two would lock to different grooves.
+      for (std::uint32_t seed = 1; seed <= 20; ++seed) {
+        const auto s = settingsFor("C major", 120, 16, seed);
+        const auto ka = BotBand::figureFor(BotBand::Voice::Drums, s, 0);
+        const auto kb = BotBand::figureFor(BotBand::Voice::Drums, s, 1);
+        if (ka.pulses == kb.pulses)
+          continue; // the range had no room; nothing to follow
+        const auto ba = BotBand::figureFor(BotBand::Voice::Bass, s, 0);
+        const auto bb = BotBand::figureFor(BotBand::Voice::Bass, s, 1);
+        expect(ba.pulses != bb.pulses,
+               "the kick changed section and the bass did not, at seed " +
+                   std::to_string(seed));
+      }
+    }
+
     beginTest("a phrase as long as the interval is the band as it was");
     {
       // The identity case, and the baseline every other phrase length is
