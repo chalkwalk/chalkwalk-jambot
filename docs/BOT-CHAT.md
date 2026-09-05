@@ -2101,6 +2101,19 @@ onsets come from the harmony. Generalising those two facts is the work.
 > deriving a figure from the kick's. The pad, lead and accent strata are still
 > unbuilt.
 >
+> **The part has a PERIOD, 2026-09-04.** It is tiled across the interval rather
+> than spanning it, so the band plays a riff rather than eight bars of
+> through-composed line. The period comes from the chart's own repeat where it
+> has one and from a seed-chosen divisor where it does not, floored at one bar.
+>
+> **The harmony is deliberately NOT tiled with it.** A chord change is read at
+> whatever point in the interval it falls, so a repeated rhythm adapts to the
+> changes instead of fighting them -- and because the bass's pitch is chosen
+> relative to the chord under it (root, octave, or that chord's fifth), a
+> repeat over a different chord is recontextualised rather than wrong. That is
+> what lets a phrase cross a bar line safely, which turns out to matter: any
+> chart with an odd number of bars would otherwise lose its phrases entirely.
+>
 > It came first for a reason nothing here predicted. `figureFor(Bass)` nudged
 > its pulse count coprime with its steps SO THAT the figure would not repeat
 > inside the interval -- because a repeating scaled copy of the kick is the

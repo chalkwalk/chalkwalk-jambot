@@ -807,6 +807,41 @@ public:
       expect(firstTile == secondTile, "the phrase did not repeat");
     }
 
+    beginTest("a phrase need not span a whole number of bars");
+    {
+      // DECIDED by measurement, 2026-09-04, and this pins the decision rather
+      // than the behaviour that happens to fall out of it.
+      //
+      // Forcing every phrase to span whole bars is free on a 2-, 4-, 6- or
+      // 8-bar chart -- no metre loses a phrase -- and ruinous on an odd one:
+      // it leaves NO phrase but the whole interval in 68% of metres at three
+      // bars, 81% at five and 87% at seven. That would silently remove the
+      // feature for exactly the player who typed an interesting progression.
+      //
+      // The unaligned case is not a fault either. A phrase of a bar and a half
+      // over three bars repeats twice per cycle and lands correctly at the
+      // cycle boundary, which is what playing in three sounds like -- and the
+      // bass takes its pitch from whatever chord is under it, so the repeat is
+      // harmonically correct wherever it falls.
+      //
+      // So the freedom has to be REACHED, or it is nominal.
+      const auto key = keyOf("C major");
+      bool sawUnaligned = false;
+      for (int bpi = 2; bpi <= 32 && !sawUnaligned; ++bpi)
+        for (std::uint32_t seed = 1; seed <= 40 && !sawUnaligned; ++seed) {
+          auto s = settingsFor("C major", 120, bpi, seed);
+          s.chart = {Harmony::Bar{{Harmony::diatonicTriad(key, 0)}},
+                     Harmony::Bar{{Harmony::diatonicTriad(key, 4)}},
+                     Harmony::Bar{{Harmony::diatonicTriad(key, 5)}}};
+          const auto part = BotBand::Foundation::part(s);
+          if ((part.phrase * 3) % part.steps != 0)
+            sawUnaligned = true;
+        }
+      expect(sawUnaligned,
+             "no seed at any metre chose a phrase across a bar line, so the "
+             "three-bar chart has quietly lost its phrases");
+    }
+
     beginTest("a repeating phrase never skips a chord change");
     {
       // The failure mode tiling could introduce: a riff that repeats straight
