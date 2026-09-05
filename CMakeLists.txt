@@ -34,6 +34,7 @@ add_library(chalkwalk_jambot STATIC
     src/BotLanguage.cpp
     src/BotNames.cpp
     src/Conductor.cpp
+    src/Form.cpp
     src/InputCheck.cpp
     src/PracticeBot.cpp
     src/TutorBot.cpp)

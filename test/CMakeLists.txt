@@ -20,6 +20,7 @@ add_executable(chalkwalk_jambot_tests
     BotNamesTests.cpp
     ConductorTests.cpp
     IntervalPumpTests.cpp
+    FormTests.cpp
     InputCheckTests.cpp
     PracticeBotTests.cpp
     TutorBotTests.cpp)
