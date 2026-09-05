@@ -70,6 +70,11 @@ public:
   // Whether this bot is transmitting at all, and how it stops. `BandPlayState`
   // carries the rules; this class only samples it once per interval.
   BandPlayState::State playPhase() const;
+
+  // Where the form last restarted. Exposed because the four things that reset
+  // it are the whole of what makes a returning section a return, and each of
+  // them is worth asserting rather than assuming (Form::letterAt).
+  int formOrigin() const;
   bool isPlaying() const { return playPhase() != BandPlayState::State::Silent; }
 
   // Asked to play, or to bring it to an end. Both go through `BandPlayState`,
@@ -237,6 +242,13 @@ private:
 
   BotBand::Voice bandVoice = BotBand::Voice::Drums;
   BotBand::Settings settings;
+
+  // The last interval the pump asked for, so a form reset arriving on the chat
+  // thread knows where "now" is: none of the four triggers has an interval
+  // index of its own. Under `stateMutex` with the settings it belongs to,
+  // because an origin taken against a stale index would restart the form in
+  // the past.
+  int lastRenderedInterval = 0;
   // Whether this bot has been given a voice at all -- a bot that never had
   // `playAs` called on it is not a band member and follows nothing. Distinct
   // from being SILENT, which is a band member between tunes.

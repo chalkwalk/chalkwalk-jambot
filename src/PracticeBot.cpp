@@ -288,8 +288,18 @@ BandPlayState::State PracticeBot::playPhase() const {
   return playState.current();
 }
 
+int PracticeBot::formOrigin() const {
+  std::lock_guard<std::mutex> sl(stateMutex);
+  return settings.formOrigin;
+}
+
 void PracticeBot::startPlaying() {
   std::lock_guard<std::mutex> sl(stateMutex);
+
+  // A band coming in mid-structure is not what "start playing" means.
+  if (playState.current() == BandPlayState::State::Silent)
+    settings.formOrigin = lastRenderedInterval + 1;
+
   playState.start();
 }
 
@@ -337,6 +347,7 @@ bool PracticeBot::handleStructured(const std::string &text,
       return false;
     settings.key = session.key;
     settings.chart = session.chart;
+    settings.formOrigin = lastRenderedInterval + 1;
     keySource = BotAnswer::Source::Chat;
     keySetBy = username;
     return true;
@@ -344,6 +355,7 @@ bool PracticeBot::handleStructured(const std::string &text,
 
   if (Harmony::applyChart(text, session) == Harmony::Applied::Chart) {
     settings.chart = session.chart;
+    settings.formOrigin = lastRenderedInterval + 1;
     chartSource = BotAnswer::Source::Chat;
     return true;
   }
@@ -539,10 +551,23 @@ void PracticeBot::onUserInfoChange() {
 
 void PracticeBot::onServerConfig(int bpm, int bpi) {
   std::lock_guard<std::mutex> sl(stateMutex);
+
+  // Guarded on an ACTUAL change: this fires with the values already in force
+  // when a client joins, and restarting the form for a message that changed
+  // nothing would put the band back to A every time somebody arrives.
+  const bool moved = (bpm > 0 && bpm != settings.bpm) ||
+                     (bpi > 0 && bpi != settings.bpi);
+
   if (bpm > 0)
     settings.bpm = bpm;
   if (bpi > 0)
     settings.bpi = bpi;
+
+  // The section LENGTH is derived from the tempo and the metre, so a carried
+  // vote would otherwise leave the band half way through a section of a length
+  // that no longer exists.
+  if (moved)
+    settings.formOrigin = lastRenderedInterval + 1;
 }
 
 BotAddress::Room PracticeBot::currentRoom() const {
@@ -741,6 +766,11 @@ void PracticeBot::onChatMessage(const std::string &rawType,
 void PracticeBot::renderInterval(int numSamples, int intervalIndex) {
   if (!active.load() || numSamples <= 0)
     return;
+
+  {
+    std::lock_guard<std::mutex> sl(stateMutex);
+    lastRenderedInterval = intervalIndex;
+  }
 
   Render r;
   BandPlayState::State phase;

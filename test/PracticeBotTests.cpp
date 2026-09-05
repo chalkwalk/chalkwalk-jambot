@@ -42,6 +42,75 @@ public:
   PracticeBotTests() : shim::UnitTest("PracticeBot", "bots") {}
 
   void runTest() override {
+    // --- the form origin, and the four things that move it ---
+    //
+    // A form read from the absolute interval index could not restart, and it
+    // has to. None of these four triggers has an interval index of its own --
+    // they all arrive on the chat thread -- so the bot remembers the pump's
+    // and resets to the NEXT one: the interval being rendered already has its
+    // letter, and restarting at it would change the form under an interval
+    // that is half written.
+
+    beginTest("a key change restarts the form");
+    {
+      Rig rig;
+      rig.bot->renderInterval(4800, 12);
+      rig.fake->say("you", "/key F minor");
+      expectEquals(rig.bot->formOrigin(), 13,
+                   "the form did not restart on a key change");
+    }
+
+    beginTest("a chart change restarts the form");
+    {
+      Rig rig;
+      rig.bot->renderInterval(4800, 7);
+      rig.fake->say("you", "| i | VII | i | VII |");
+      expectEquals(rig.bot->formOrigin(), 8,
+                   "the form did not restart on a chart change");
+    }
+
+    beginTest("a tempo change restarts the form, and a repeat of it does not");
+    {
+      // The section LENGTH comes from the tempo and the metre, so a carried
+      // vote would otherwise strand the band half way through a section of a
+      // length that no longer exists.
+      Rig rig;
+      rig.bot->renderInterval(4800, 4);
+      rig.fake->configures(140, 8);
+      expectEquals(rig.bot->formOrigin(), 5, "a tempo change did not restart");
+
+      // The same values again change nothing. This fires with the values
+      // already in force whenever somebody joins, and a reset there would put
+      // the band back to A every time the room grew.
+      rig.bot->renderInterval(4800, 9);
+      rig.fake->configures(140, 8);
+      expectEquals(rig.bot->formOrigin(), 5,
+                   "a config message that changed nothing restarted the form");
+    }
+
+    beginTest("a metre change restarts the form too");
+    {
+      Rig rig;
+      rig.bot->renderInterval(4800, 2);
+      rig.fake->configures(120, 16);
+      expectEquals(rig.bot->formOrigin(), 3);
+    }
+
+    beginTest("coming in from silence starts the form, and staying in does not");
+    {
+      Rig rig;
+      rig.bot->renderInterval(4800, 6);
+      rig.bot->startPlaying();
+      expectEquals(rig.bot->formOrigin(), 7,
+                   "the band came in mid-structure");
+
+      // Already playing: a second start is not a new tune.
+      rig.bot->renderInterval(4800, 20);
+      rig.bot->startPlaying();
+      expectEquals(rig.bot->formOrigin(), 7,
+                   "a second start restarted a form already running");
+    }
+
     beginTest("a bot names its own channel `role: instrument`");
     {
       Rig rig;

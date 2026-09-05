@@ -72,6 +72,14 @@ public:
       l->onIntervalReceived(who, 0, block.data(), nullptr, (int)block.size());
   }
 
+  // The server announcing a tempo or metre. Modelled rather than called
+  // directly, because `onServerConfig` is a listener override and a test that
+  // reached past the interface would be testing a different object.
+  void configures(int bpm, int bpi) {
+    for (auto *l : listeners)
+      l->onServerConfig(bpm, bpi);
+  }
+
   void leaves(const std::string &who) {
     room.erase(std::remove_if(room.begin(), room.end(),
                               [&](const auto &m) { return m.username == who; }),

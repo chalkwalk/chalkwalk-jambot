@@ -65,6 +65,12 @@ struct Settings {
   // same chords evenly spread (see Harmony::layoutChart).
   Harmony::Chart chart;
 
+  // The interval the form last restarted at. A form read from the absolute
+  // interval index could not restart, and it has to: a band coming in
+  // mid-structure is not what "start playing" means, and a figure returning
+  // over harmony that has moved is not a return (Form::letterAt).
+  int formOrigin = 0;
+
   // Rerolled by "shake". Salted per voice inside, so one seed does not give
   // every instrument the same shape -- the mistake the original
   // documents having made and fixed.
