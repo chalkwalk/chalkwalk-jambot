@@ -2101,6 +2101,13 @@ onsets come from the harmony. Generalising those two facts is the work.
 > deriving a figure from the kick's. The pad, lead and accent strata are still
 > unbuilt.
 >
+> **A stratum's figure depends on the SECTION, 2026-09-05.** The foundation's
+> two members change density between sections of the form and return to their
+> own figure when the section does. The harmony still does not vary with it:
+> one chart and one key for the whole session, because the interval delay means
+> the form a listener hears is rotated against the form being played, and a
+> rotation of the same chords is the same chords.
+>
 > **The part has a PERIOD, 2026-09-04.** It is tiled across the interval rather
 > than spanning it, so the band plays a riff rather than eight bars of
 > through-composed line. The period comes from the chart's own repeat where it
