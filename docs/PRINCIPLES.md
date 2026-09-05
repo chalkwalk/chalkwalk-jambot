@@ -87,9 +87,15 @@ progression you cannot hear.
 
 ## §6 The same seed plays the same music
 
-Every decision is a deterministic function of the room seed and the interval
-index. No wall clock, no entropy, no hidden state. `shake` is the only reroll,
-and it is a person asking.
+Every decision is a deterministic function of the room seed, the interval index,
+and **the room's inputs** -- the key, the chart, the tempo, and eventually what
+the band heard. No wall clock, no entropy, no hidden state. `shake` is the only
+reroll, and it is a person asking.
+
+The inputs clause is load-bearing rather than a hedge. A band that reacts to you
+is not deterministic in the seed alone, and it is not meant to be; what it must
+stay is deterministic in the seed *and what it was given*, so a test can hand it
+a reading and get the same music twice.
 
 This is what makes the band testable at all, and it is why every number here can
 be asserted rather than sampled.
@@ -139,6 +145,10 @@ The generator stays in charge. A band that echoed you would be a mirror, and a
 mirror is not somebody to play with.
 
 ## §12 Cheap and legible over clever
+
+> Sources for the claims in this file are in `SOURCES.md`. A principle with a
+> source is one somebody can argue with; a principle without one is a
+> preference.
 
 No machine learning, no model weights, no data files. Every stage is a small
 deterministic function somebody can read and a test can pin.
