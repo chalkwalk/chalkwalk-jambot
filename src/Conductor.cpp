@@ -350,6 +350,10 @@ bool Conductor::considerVote(const std::string &text) {
       duration<double>(steady_clock::now().time_since_epoch()).count();
 
   BandControl *band = nullptr;
+  bool topUp = false;
+  int bandVotes = 0;   // already in this line's count, as far as we know
+  int membersCast = 0; // of those, the members' rather than the conductor's
+  double castAt = now;
   {
     std::lock_guard<std::mutex> sl(stateMutex);
 
@@ -361,14 +365,21 @@ bool Conductor::considerVote(const std::string &text) {
       backing = {};
 
     // Already behind this one. Every vote the band casts brings another line
-    // back, so without this the conductor would answer itself.
+    // back, so without this the conductor would answer itself -- unless the
+    // requirement has gone up, which only somebody arriving does.
     if (backing.active && backing.isBpm == line.isBpm &&
-        backing.value == line.value)
-      return true;
-
-    // A different candidate is a different question: the band's support is for
-    // a value, not for the idea of changing.
-    backing = {};
+        backing.value == line.value) {
+      if (line.required <= backing.required)
+        return true;
+      topUp = true;
+      bandVotes = 1 + backing.membersCast;
+      membersCast = backing.membersCast;
+      castAt = backing.at; // the conductor's vote is not recast, so it ages
+    } else {
+      // A different candidate is a different question: the band's support is
+      // for a value, not for the idea of changing.
+      backing = {};
+    }
   }
 
   // Everyone connected counts toward the requirement, this bot included; a
@@ -391,30 +402,46 @@ bool Conductor::considerVote(const std::string &text) {
 
   // The gate: the humans must already have cast what a room of just them would
   // have needed. Over-stated rather than under when the threshold cannot be
-  // pinned exactly, so the band errs toward not helping.
+  // pinned exactly, so the band errs toward not helping. On a top-up the line
+  // counts the band's own votes too, and they are not the humans'; any of the
+  // members' still in flight are subtracted anyway, which errs the same way.
+  const int humanVotes = std::max(0, line.votes - bandVotes);
   const int neededAlone =
       voting::mostVotesNeededAlone(humans, users, line.required);
-  if (line.votes < neededAlone)
+  if (humanVotes < neededAlone)
     return true;
 
   const int shortfall = line.required - line.votes;
   if (shortfall <= 0)
     return true; // the room carried it without us
 
+  // castVotes hands votes to the first connected members, so a top-up asks for
+  // the members who already voted as well: asking again of the same bot adds
+  // nothing, and a vote recast is only a vote refreshed.
+  const int membersWanted = topUp ? membersCast + shortfall : shortfall - 1;
+
   {
     std::lock_guard<std::mutex> sl(stateMutex);
-    backing = {true, line.isBpm, line.value, now, line.timeoutSeconds};
+    backing = {true,       line.isBpm,          line.value,
+               castAt,     line.timeoutSeconds, line.required,
+               membersCast};
     band = control;
   }
 
   const std::string what = line.isBpm ? "bpm" : "bpi";
-  say("!vote " + what + " " + std::to_string(line.value));
+  if (!topUp)
+    say("!vote " + what + " " + std::to_string(line.value));
 
   // Nothing is said about this. The vote lines are the room's own feedback and
   // a bot narrating them would be the chorus every part of this design avoids
   // (`docs/BOT-CHAT.md`: when the tempo changes, nothing).
-  if (shortfall > 1 && band != nullptr)
-    band->castVotes(line.isBpm, line.value, shortfall - 1);
+  if (membersWanted > 0 && band != nullptr) {
+    const int cast = band->castVotes(line.isBpm, line.value, membersWanted);
+    std::lock_guard<std::mutex> sl(stateMutex);
+    if (backing.active && backing.value == line.value &&
+        backing.isBpm == line.isBpm)
+      backing.membersCast = cast;
+  }
 
   return true;
 }

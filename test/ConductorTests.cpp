@@ -601,6 +601,64 @@ public:
     beginTest("a BPI vote is cast as a BPI vote");
     {
       Rig rig;
+    beginTest("a room that grows mid-vote is topped up again");
+    {
+      // The server works out what a vote needs from who is here when it
+      // counts, not when the poll began. One human, the conductor and two bots
+      // need 2 of 4, so the conductor's own vote is the whole shortfall -- but
+      // two more bots log in before that vote lands, and it comes back as 2/3.
+      // Read as an echo, the poll stalls one vote short for good.
+      Rig rig;
+      rig.client->joins("alice");
+      rig.client->joins("Delvo[bass-bot]");
+      rig.client->joins("Mirn[kit-bot]");
+
+      rig.client->say("", voteLine(1, 2, 130));
+      expect(rig.control.votes.empty(),
+             "a shortfall of one is the conductor's own");
+
+      rig.client->joins("Sorrel[keys-bot]");
+      rig.client->joins("Brannock[lead-bot]");
+      rig.client->say("", voteLine(2, 3, 130));
+
+      expectEquals((int)rig.control.votes.size(), 1,
+                   "the band was not asked for the vote the larger room needs");
+      if (!rig.control.votes.empty())
+        expectEquals(rig.control.votes.front().count, 1);
+
+      int casts = 0;
+      for (const auto &line : rig.client->saidCopy())
+        if (line == "!vote bpm 130")
+          ++casts;
+      expectEquals(casts, 1, "the conductor's own vote is already counted");
+
+      // And the line that answer brings back is an echo again.
+      rig.client->say("", voteLine(3, 3, 130));
+      expectEquals((int)rig.control.votes.size(), 1);
+    }
+
+    beginTest("a top-up asks for the votes already cast, plus the new one");
+    {
+      // castVotes hands the votes to the first connected members, so asking
+      // for one when one has already voted asks the same bot again and adds
+      // nothing. The count has to include what the band already cast.
+      Rig rig;
+      rig.client->joins("alice");
+      rig.client->joins("bob");
+      rig.client->joins("Delvo[bass-bot]");
+      rig.client->joins("Mirn[kit-bot]");
+
+      rig.client->say("", voteLine(1, 3, 130)); // the conductor and one member
+      rig.client->joins("Sorrel[keys-bot]");
+      rig.client->joins("Brannock[lead-bot]");
+      rig.client->say("", voteLine(3, 4, 130)); // seven here now, at 50%
+
+      expectEquals((int)rig.control.votes.size(), 2);
+      if (rig.control.votes.size() == 2)
+        expectEquals(rig.control.votes.back().count, 2,
+                     "the member who already voted was counted as new");
+    }
+
       rig.client->joins("alice");
       rig.client->joins("bob");
       rig.client->joins("Delvo[bass-bot]");

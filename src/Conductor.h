@@ -126,6 +126,14 @@ private:
     // or the band would refuse to back the same value ever again.
     double at = 0.0;
     int timeoutSeconds = 0;
+
+    // What the requirement was when the band last voted, and how many members
+    // it got to vote. The server counts who is here each time it tallies, so a
+    // room that grows mid-poll raises the requirement on a value the band is
+    // already behind -- and only a raised requirement tells that line apart
+    // from the echo of the band's own vote.
+    int required = 0;
+    int membersCast = 0;
   };
   Backing backing;
 
