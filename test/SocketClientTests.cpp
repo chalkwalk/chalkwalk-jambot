@@ -349,3 +349,57 @@ TEST_CASE("SocketClient timers fire on the callback thread and cancel", "[socket
   CHECK(std::count(rec.events.begin(), rec.events.end(), "cancelled fired") == 0);
   CHECK(rec.oneThread);
 }
+
+TEST_CASE("SocketClient transmits in frames the stock server accepts", "[socket]") {
+  // ninjamsrv closes the connection on a frame payload over 16 KiB; found
+  // against the real server, when the first interval sent dropped the bot.
+  ScriptedServer server;
+  Recorder rec;
+  BotClient::SocketClient client;
+  client.addListener(&rec);
+  client.setSampleRate(48000);
+  client.setChannels({"voice"});
+  client.connect("127.0.0.1", server.port, "balcony", "");
+  server.accept();
+  const std::uint8_t challenge[8] = {};
+  server.send(proto::ServerAuthChallenge, proto::buildAuthChallenge(challenge));
+  server.next();
+  server.send(proto::ServerAuthReply, proto::buildAuthReply(true, "balcony"));
+  REQUIRE(server.next().type == proto::ClientSetChannelInfo);
+  REQUIRE(rec.waitFor("connected"));
+
+  // Noise does not compress: four seconds of it is far more than one frame.
+  std::vector<float> l(192000), r(192000);
+  std::uint32_t seed = 1;
+  for (size_t i = 0; i < l.size(); ++i) {
+    seed = seed * 1664525u + 1013904223u;
+    l[i] = (float)((int)(seed >> 8) % 2000 - 1000) / 1000.0f;
+    r[i] = -l[i];
+  }
+  client.transmit(l.data(), r.data(), (int)l.size());
+
+  Frame begin = server.next();
+  REQUIRE(begin.type == proto::UploadIntervalBegin);
+  REQUIRE(begin.payload.size() == 25);
+  size_t total = 0;
+  int frames = 0;
+  ByteBuffer ogg;
+  while (true) {
+    Frame f = server.next();
+    REQUIRE(f.type == proto::UploadIntervalWrite);
+    CHECK(f.payload.size() <= 16384);
+    proto::IntervalWrite w;
+    REQUIRE(proto::parseIntervalWrite(f.payload, w));
+    const auto *a = static_cast<const std::uint8_t *>(w.audioData);
+    ogg.insert(ogg.end(), a, a + w.audioSize);
+    total += (size_t)w.audioSize;
+    ++frames;
+    if (w.isFinal)
+      break;
+  }
+  CHECK(frames > 2);
+  chalkwalk::ninjam::VorbisDecoder dec;
+  dec.decode(ogg.data(), (int)ogg.size());
+  CHECK(dec.available() / 2 > 190000);
+  CHECK(total == ogg.size());
+}

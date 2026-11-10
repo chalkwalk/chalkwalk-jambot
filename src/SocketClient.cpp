@@ -728,7 +728,9 @@ void SocketClient::transmit(const float *left, const float *right, int numSample
   const int size = enc.available();
   const char fourcc[4] = {'O', 'G', 'G', 'v'};
   p->queue(proto::UploadIntervalBegin, proto::buildIntervalBegin(guid, (std::uint32_t)size, fourcc, 0));
-  constexpr int kChunk = 16384;
+  // The stock server closes the connection on any frame whose payload is over
+  // 16 KiB, header fields included; 8 KiB of audio a frame stays well clear.
+  constexpr int kChunk = 8192;
   for (int at = 0; at < size || at == 0; at += kChunk) {
     const int n = std::min(kChunk, size - at);
     const bool last = at + kChunk >= size;
