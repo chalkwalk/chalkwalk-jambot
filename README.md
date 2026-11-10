@@ -26,6 +26,7 @@ what key are we in, can we slow down, play something else, stop, start again.
 | `BotChat.{h,cpp}` | the join of the three: context + message -> what to say |
 | `BotNames.{h,cpp}` | the name pool, and picking a band that reads apart |
 | `BotClient.h` | the room as a bot needs it: 14 calls out, 6 back |
+| `SocketClient.{h,cpp}` | `BotClient` over a plain TCP socket, one network thread (POSIX) |
 
 ## The corpus is the specification
 
