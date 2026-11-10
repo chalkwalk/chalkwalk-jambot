@@ -103,9 +103,10 @@ loopback server, and the room that puts a server and a band together.
   repository's first job was to carry its history across intact, and renaming
   several hundred call sites in the same change would have made the move and
   the rename impossible to review separately.
-- **There is no client yet.** `BotClient.h` is the interface a host implements;
-  Antiphon implements it, and nothing here does. A JUCE-free socket client is
-  what stands between this library and `jambot --connect host:port`.
+- **The socket client is POSIX only.** `SocketClient.h` is `BotClient.h` over a
+  plain TCP socket with one network thread; Linux and macOS. Windows needs
+  Winsock's spelling of the same few calls, and until then a Windows host
+  supplies its own `BotClient::Client`, as Antiphon does.
 - **The suites run on a shim.** `test/JuceUnitShim.h` gives `juce::UnitTest`'s
   verbs and enough of `juce::String` on top of Catch2, so the assertions came
   across unedited. The count is the check that nothing was dropped, and it is

@@ -41,6 +41,12 @@ struct Channel {
   int index = 0;
   std::string name;
   bool recvEnabled = false;
+  // What the player asks the room to hear the channel at, as the server relays
+  // it: decibels (0 is as played) and pan (-1 left .. +1 right). Most clients
+  // ignore both; a listener that mixes the room for somebody else should not,
+  // because a player who pans their guitar left meant it.
+  float volumeDb = 0.0f;
+  float pan = 0.0f;
 };
 
 struct Peer {

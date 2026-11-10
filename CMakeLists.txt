@@ -40,6 +40,14 @@ add_library(chalkwalk_jambot STATIC
     src/TutorBot.cpp)
 add_library(chalkwalk::jambot ALIAS chalkwalk_jambot)
 
+# The socket client is POSIX for now (see src/SocketClient.h); a host on
+# Windows supplies its own `BotClient::Client`, as Antiphon does.
+if(UNIX)
+    target_sources(chalkwalk_jambot PRIVATE src/SocketClient.cpp)
+    find_package(Threads REQUIRED)
+    target_link_libraries(chalkwalk_jambot PUBLIC Threads::Threads)
+endif()
+
 # The headers are in src/ beside their sources rather than under
 # include/chalkwalk/jambot/, and the namespaces are still `BotBand`,
 # `PracticeBot` and the rest rather than `chalkwalk::jambot`. Both are

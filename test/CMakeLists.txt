@@ -51,4 +51,8 @@ else()
         PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
 endif()
 
+if(UNIX)
+    target_sources(chalkwalk_jambot_tests PRIVATE SocketClientTests.cpp)
+endif()
+
 add_test(NAME chalkwalk_jambot COMMAND chalkwalk_jambot_tests)
