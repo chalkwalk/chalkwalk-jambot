@@ -149,8 +149,10 @@ struct SocketClient::Impl : std::enable_shared_from_this<Impl> {
 
   // ---- The thread -----------------------------------------------------------
   void run() {
-    if (open())
+    if (open()) {
       loop();
+      flush();
+    }
     if (fd >= 0)
       ::close(fd);
     fd = -1;
@@ -236,6 +238,26 @@ struct SocketClient::Impl : std::enable_shared_from_this<Impl> {
       fireTimers();
       if (connected && Clock::now() - lastSend >= kKeepAlive)
         queue(proto::KeepAlive, {});
+    }
+  }
+
+  // On the way out, what was already said still goes: a bot's goodbye is
+  // the line most worth sending. A second at most, then we close anyway.
+  void flush() {
+    if (fd < 0 || !reason.empty())
+      return;  // the connection is already gone
+    const auto until = Clock::now() + std::chrono::seconds(1);
+    while (Clock::now() < until) {
+      {
+        std::lock_guard<std::mutex> g(m);
+        if (out.empty())
+          return;
+      }
+      pollfd pfd{fd, POLLOUT, 0};
+      if (::poll(&pfd, 1, 50) < 0 && errno != EINTR)
+        return;
+      if (!writeSome())
+        return;
     }
   }
 
