@@ -22,6 +22,10 @@
 #include <mutex>
 #include <thread>
 
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0  // macOS: SO_NOSIGPIPE is set on the socket instead
+#endif
+
 namespace proto = chalkwalk::ninjam::protocol;
 using chalkwalk::ninjam::ByteBuffer;
 
@@ -55,6 +59,10 @@ public:
     fd = ::accept(listenFd, nullptr, nullptr);
     timeval tv{5, 0};
     ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+#ifdef SO_NOSIGPIPE
+    int one = 1;
+    ::setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);
+#endif
   }
   void send(std::uint8_t type, const ByteBuffer &payload) {
     std::uint8_t h[proto::kHeaderSize];
