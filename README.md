@@ -63,6 +63,18 @@ A host supplies the room through `BotClient.h` -- connect, chat, transmit, and
 timers must fire wherever the host's messages are delivered; a scheduler thread
 of their own would turn `heardOne` into a silent race.
 
+## A band in any room
+
+`jambot-band` (built standalone, POSIX) sends the practice band to a room that is
+already running, over `SocketClient`:
+
+```sh
+build/jambot-band HOST PORT --key "D minor" --owner YOURNAME [--players N] [--seconds N]
+```
+
+Only into a room whose owner wants it. With `--owner`, the band leaves a while after
+that player does; `/msg <bot> leave` sends one away; Ctrl-C ends it.
+
 ## Build and test
 
 ```sh
