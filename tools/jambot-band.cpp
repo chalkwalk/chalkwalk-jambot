@@ -55,8 +55,12 @@ void usage(const char *argv0) {
                "  --players N   how many bots, 1-4 (default 4): drums, bass, keys, lead\n"
                "  --key NAME    starting key, e.g. \"D minor\" (default C major)\n"
                "  --seed N      the same seed is the same band (default 20260811)\n"
-               "  --owner NAME  the player the band follows; it leaves a while after\n"
-               "                they do (default: nobody, it stays until stopped)\n"
+               "  --owner NAME  the player the band follows: it stays while they (or any\n"
+               "                other human) are in the room, and leaves 3 minutes after\n"
+               "                the room empties. Until the owner first arrives it waits\n"
+               "                6 minutes, and without --owner nobody can arrive, so the\n"
+               "                band leaves after 6 minutes (jambot's rule: no band\n"
+               "                plays on, forgotten)\n"
                "  --seconds N   stop after N seconds (default: until Ctrl-C)\n",
                argv0);
 }
