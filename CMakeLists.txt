@@ -46,6 +46,13 @@ if(UNIX)
     target_sources(chalkwalk_jambot PRIVATE src/SocketClient.cpp)
     find_package(Threads REQUIRED)
     target_link_libraries(chalkwalk_jambot PUBLIC Threads::Threads)
+
+    # `jambot-band`: the practice band in any room, over the socket client.
+    # Built standalone only, like the tests; a parent wants the library.
+    if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+        add_executable(jambot-band tools/jambot-band.cpp)
+        target_link_libraries(jambot-band PRIVATE chalkwalk::jambot)
+    endif()
 endif()
 
 # The headers are in src/ beside their sources rather than under
