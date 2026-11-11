@@ -65,6 +65,20 @@ public:
                juce::String(human) + " was taken for a bot");
     }
 
+    beginTest("an anonymous login answers to the name it typed");
+    {
+      // The server gives an anonymous login `name@1.2.3.x`. Nobody types the
+      // address, so the handle is the name alone, for humans and bots alike.
+      expectEquals(juce::String(BotNames::handleOf("dave@1.2.3.x")),
+                   juce::String("dave"));
+      expectEquals(juce::String(BotNames::handleOf("Balcony@10.0.0.x")),
+                   juce::String("balcony"));
+      expectEquals(juce::String(BotNames::handleOf("Mirn[kit-bot]@1.2.3.x")),
+                   juce::String("mirn"));
+      expectEquals(juce::String(BotNames::handleOf("dave")),
+                   juce::String("dave"));
+    }
+
     beginTest("every band the seed can pick is mutually distinguishable");
     {
       // The constraints are on the BAND rather than on the pool -- the pool

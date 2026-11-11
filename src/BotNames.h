@@ -103,10 +103,12 @@ inline std::string usernameFor(const std::string &name,
   return name + "[" + instrument + "-bot]";
 }
 
-// The short handle a bot answers to, lowercased: the part before the bracket.
+// The short handle a bot answers to, lowercased: the part before the bracket,
+// or before the `@` the server adds to an anonymous login (`dave@1.2.3.x`),
+// which nobody types when they address someone.
 inline std::string handleOf(const std::string &username) {
-  const auto bracket = username.find('[');
-  std::string handle = username.substr(0, bracket);
+  const auto cut = username.find_first_of("[@");
+  std::string handle = username.substr(0, cut);
   for (auto &c : handle)
     c = (char)std::tolower((unsigned char)c);
   return handle;
